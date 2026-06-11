@@ -43,10 +43,10 @@ export default function Settings({ user, onRefresh }) {
           <>
             <div className="card-title">Бесплатный план</div>
             <div className="card-subtitle" style={{ marginBottom: 12 }}>
-              До 3 семейных кругов
+              До 3 кругов
             </div>
             <ul style={{ fontSize: 14, paddingLeft: 20, marginBottom: 16, lineHeight: 1.8 }}>
-              <li>Безлимитные семейные круги</li>
+              <li>Безлимитные круги</li>
               <li>Расширенная аналитика подарков</li>
               <li>Кастомные напоминания</li>
             </ul>
@@ -60,8 +60,8 @@ export default function Settings({ user, onRefresh }) {
       <div className="section-title">О приложении</div>
       <div className="card">
         <div className="card-subtitle" style={{ lineHeight: 1.6 }}>
-          <b>Подарок.бот</b> — семейный wishlist для Telegram.
-          Планируйте подарки заранее, получайте напоминания за 7, 3 и 1 день до события.
+          <b>Подарок.бот</b> — wishlist и напоминания о подарках в Telegram.
+          Планируйте подарки для друзей, близких и коллег заранее.
         </div>
       </div>
 

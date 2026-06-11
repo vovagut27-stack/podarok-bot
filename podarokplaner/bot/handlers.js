@@ -92,7 +92,7 @@ function miniAppKeyboard(startParam = '') {
   return {
     inline_keyboard: [[
       {
-        text: '🎁 Создать семейный круг',
+        text: '🎁 Создать круг',
         web_app: { url: webAppUrl(startParam) },
       },
     ]],
@@ -129,10 +129,10 @@ export async function handleStart(msg) {
 
   await sendMessage(msg.chat.id,
     `🎁 <b>Добро пожаловать в Подарок.бот!</b>\n\n` +
-    `Планируй семейные подарки заранее — никогда не забывай о днях рождения и всегда знай, что подарить.\n\n` +
+    `Планируй подарки заранее — для друзей, близких и коллег. Не забывай о важных датах и всегда знай, что подарить.\n\n` +
     `<b>Быстрый старт:</b>\n` +
-    `1️⃣ Создай семейный круг\n` +
-    `2️⃣ Добавь близких и их даты\n` +
+    `1️⃣ Создай круг подарков\n` +
+    `2️⃣ Добавь людей и их даты\n` +
     `3️⃣ Получай напоминания с идеями подарков`,
     { reply_markup: miniAppKeyboard(startParam) }
   );
@@ -173,7 +173,7 @@ export async function handleCircles(msg) {
 
   if (circles.length === 0) {
     await sendMessage(msg.chat.id,
-      '👨‍👩‍👧‍👦 У вас пока нет семейных кругов.\n\nСоздайте первый!',
+      '👥 У вас пока нет кругов.\n\nСоздайте первый!',
       { reply_markup: miniAppKeyboard() }
     );
     return;
@@ -189,7 +189,7 @@ export async function handleCircles(msg) {
   }]));
 
   await sendMessage(msg.chat.id,
-    `👨‍👩‍👧‍👦 <b>Ваши семейные круги:</b>\n\n${lines}`,
+    `👥 <b>Ваши круги:</b>\n\n${lines}`,
     { reply_markup: { inline_keyboard: buttons } }
   );
 }
@@ -200,15 +200,15 @@ export async function handleHelp(msg) {
     `<b>Команды:</b>\n` +
     `/start — начать работу\n` +
     `/напомнить — ближайшие 3 события\n` +
-    `/круги — ваши семейные круги\n` +
+    `/круги — ваши круги подарков\n` +
     `/помощь — эта справка\n\n` +
     `<b>Как это работает:</b>\n` +
-    `• Создайте семейный круг и добавьте близких\n` +
+    `• Создайте круг и добавьте людей\n` +
     `• Укажите дни рождения и другие даты\n` +
     `• Заполните wishlist — список желаемых подарков\n` +
     `• Бот напомнит за 7, 3 и 1 день до события\n\n` +
     `<b>Премиум (500 ⭐/мес):</b>\n` +
-    `• Безлимитные семейные круги\n` +
+    `• Безлимитные круги\n` +
     `• Расширенная аналитика\n` +
     `• Кастомные напоминания\n\n` +
     `Поддержка: @podarok_bot_support`,
@@ -229,7 +229,7 @@ export async function handleSuccessfulPayment(msg) {
 
   await sendMessage(msg.chat.id,
     `⭐ <b>Спасибо за Premium!</b>\n\n` +
-    `Теперь у вас безлимитные семейные круги и все премиум-функции до ${until.toLocaleDateString('ru-RU')}.`
+    `Теперь у вас безлимитные круги и все премиум-функции до ${until.toLocaleDateString('ru-RU')}.`
   );
 }
 

@@ -52,7 +52,7 @@ export default function CreateCircle({ onCreated, onCancel }) {
         <label>Название круга</label>
         <input
           required
-          placeholder="Семья Ивановых"
+          placeholder="Семья Ивановых, Друзья, Коллеги..."
           value={name}
           onChange={e => setName(e.target.value)}
           autoFocus
@@ -61,7 +61,7 @@ export default function CreateCircle({ onCreated, onCancel }) {
 
       <div className="section-title">Участники (имена)</div>
       <p style={{ fontSize: 13, color: 'var(--tg-theme-hint-color)', marginBottom: 12 }}>
-        Добавьте имена близких — они смогут присоединиться позже
+        Добавьте имена — участники смогут присоединиться позже
       </p>
 
       {members.map((m, i) => (

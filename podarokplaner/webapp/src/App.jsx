@@ -103,7 +103,7 @@ export default function App() {
 
   const headerTitles = {
     [VIEWS.home]: { title: '🎁 Подарок.бот', subtitle: 'Планируй подарки заранее' },
-    [VIEWS.create]: { title: 'Новый круг', subtitle: 'Создайте семейный круг' },
+    [VIEWS.create]: { title: 'Новый круг', subtitle: 'Объедините людей для совместных подарков' },
     [VIEWS.circle]: { title: selectedCircle?.circle?.name || 'Круг', subtitle: 'Управление кругом' },
     [VIEWS.events]: { title: '📅 Календарь', subtitle: 'Ближайшие события' },
     [VIEWS.wishlist]: { title: '📋 Wishlist', subtitle: selectedCircle?.circle?.name },

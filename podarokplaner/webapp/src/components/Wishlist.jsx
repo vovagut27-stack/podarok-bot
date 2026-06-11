@@ -59,7 +59,7 @@ export default function Wishlist({ circleId }) {
   return (
     <>
       <p style={{ fontSize: 14, color: 'var(--tg-theme-hint-color)', marginBottom: 16 }}>
-        Добавьте желаемые подарки — семья увидит их в напоминаниях
+        Добавьте желаемые подарки — участники круга увидят их в напоминаниях
       </p>
 
       {items.length === 0 && !showForm ? (

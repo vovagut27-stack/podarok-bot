@@ -5,7 +5,7 @@ export default function EventCalendar({ events }) {
         <div className="emoji">📅</div>
         <p>Нет предстоящих событий</p>
         <p style={{ fontSize: 13, marginTop: 8 }}>
-          Добавьте дни рождения в семейном круге
+          Добавьте даты в круге
         </p>
       </div>
     );

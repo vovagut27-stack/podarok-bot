@@ -20,12 +20,12 @@ export default function FamilyCircles({ circles, events, onCreate, onSelect, onV
         </>
       )}
 
-      <div className="section-title">Мои семейные круги</div>
+      <div className="section-title">Мои круги</div>
 
       {circles.length === 0 ? (
         <div className="empty-state">
-          <div className="emoji">👨‍👩‍👧‍👦</div>
-          <p>Создайте первый семейный круг<br />и добавьте близких</p>
+          <div className="emoji">👥</div>
+          <p>Создайте первый круг<br />и добавьте людей</p>
         </div>
       ) : (
         circles.map(circle => (
