@@ -38,6 +38,7 @@ async function request(path, options = {}) {
 
 export const api = {
   getMe: () => request('/me'),
+  setLocale: (locale) => request('/me/locale', { method: 'POST', body: { locale } }),
   getCircles: () => request('/circles'),
   createCircle: (name, members) => request('/circles', { method: 'POST', body: { name, members } }),
   getCircle: (id) => request(`/circles/${id}`),
@@ -73,15 +74,15 @@ export function buildCircleInviteLink(botUsername, circleId) {
   return `https://t.me/${user}?start=circle_${circleId}`;
 }
 
-export function shareInviteLink(link, circleName) {
-  const text = `Присоединяйся к кругу «${circleName}» в Подарок.бот 🎁`;
+export function shareInviteLink(link, shareText, appName = 'Podarok.bot') {
+  const text = shareText;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   if (tg?.openTelegramLink) {
     tg.openTelegramLink(shareUrl);
     return;
   }
   if (navigator.share) {
-    navigator.share({ title: 'Подарок.бот', text, url: link }).catch(() => {});
+    navigator.share({ title: appName, text, url: link }).catch(() => {});
     return;
   }
   navigator.clipboard?.writeText(`${text}\n${link}`);

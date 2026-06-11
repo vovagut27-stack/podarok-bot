@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT,
   is_premium BOOLEAN DEFAULT FALSE,
   premium_until DATETIME,
+  locale TEXT DEFAULT 'ru',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS family_circles (
@@ -118,6 +119,14 @@ function assertEnv() {
   }
 }
 
+async function migrateSchema() {
+  try {
+    await getClient().execute(`ALTER TABLE users ADD COLUMN locale TEXT DEFAULT 'ru'`);
+  } catch {
+    /* column exists */
+  }
+}
+
 export async function initDb() {
   if (!dbReady) {
     dbReady = (async () => {
@@ -128,6 +137,8 @@ export async function initDb() {
       );
       if (check.rows.length === 0) {
         await runSchema();
+      } else {
+        await migrateSchema();
       }
     })();
   }
@@ -153,15 +164,28 @@ function num(value) {
   return value == null ? null : Number(value);
 }
 
-export async function upsertUser(telegramId, username, firstName) {
+export async function upsertUser(telegramId, username, firstName, languageCode) {
+  const defaultLocale = languageCode?.startsWith('en') ? 'en' : 'ru';
   await exec(`
-    INSERT INTO users (telegram_id, username, first_name)
-    VALUES (?, ?, ?)
+    INSERT INTO users (telegram_id, username, first_name, locale)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(telegram_id) DO UPDATE SET
       username = excluded.username,
       first_name = excluded.first_name
-  `, [telegramId, username || null, firstName || null]);
+  `, [telegramId, username || null, firstName || null, defaultLocale]);
   return one('SELECT * FROM users WHERE telegram_id = ?', [telegramId]);
+}
+
+export async function setUserLocale(telegramId, locale) {
+  const loc = locale === 'en' ? 'en' : 'ru';
+  await exec(`UPDATE users SET locale = ? WHERE telegram_id = ?`, [loc, telegramId]);
+  return loc;
+}
+
+export async function getUserLocale(telegramId, languageCode) {
+  const user = await getUser(telegramId);
+  if (user?.locale) return user.locale === 'en' ? 'en' : 'ru';
+  return languageCode?.startsWith('en') ? 'en' : 'ru';
 }
 
 export async function getUser(telegramId) {

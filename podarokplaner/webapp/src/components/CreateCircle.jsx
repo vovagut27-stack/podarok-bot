@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { api, haptic } from '../api';
+import { useLocale } from '../i18n/LocaleContext';
+import { translateApiError } from '../i18n/translations';
 
 export default function CreateCircle({ onCreated, onCancel }) {
+  const { t, locale } = useLocale();
   const [name, setName] = useState('');
   const [members, setMembers] = useState([{ name: '' }]);
   const [saving, setSaving] = useState(false);
@@ -35,9 +38,10 @@ export default function CreateCircle({ onCreated, onCancel }) {
       haptic('success');
       onCreated(circle);
     } catch (err) {
-      setError(err.message);
       if (err.data?.premiumRequired) {
-        setError('Достигнут лимит бесплатных кругов (3). Оформите Premium в настройках.');
+        setError(t('create.premiumLimit'));
+      } else {
+        setError(translateApiError(err.message, locale));
       }
     } finally {
       setSaving(false);
@@ -49,25 +53,25 @@ export default function CreateCircle({ onCreated, onCancel }) {
       {error && <div className="error-banner">{error}</div>}
 
       <div className="form-group">
-        <label>Название круга</label>
+        <label>{t('create.circleName')}</label>
         <input
           required
-          placeholder="Семья Ивановых, Друзья, Коллеги..."
+          placeholder={t('create.circleNamePlaceholder')}
           value={name}
           onChange={e => setName(e.target.value)}
           autoFocus
         />
       </div>
 
-      <div className="section-title">Участники (имена)</div>
+      <div className="section-title">{t('create.membersSection')}</div>
       <p style={{ fontSize: 13, color: 'var(--tg-theme-hint-color)', marginBottom: 12 }}>
-        Добавьте имена — участники смогут присоединиться позже
+        {t('create.membersHint')}
       </p>
 
       {members.map((m, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <input
-            placeholder={`Участник ${i + 1}`}
+            placeholder={t('create.memberN', { n: i + 1 })}
             value={m.name}
             onChange={e => updateMember(i, e.target.value)}
             style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #e5e7eb' }}
@@ -81,15 +85,15 @@ export default function CreateCircle({ onCreated, onCancel }) {
       ))}
 
       <button type="button" className="btn btn-ghost" onClick={addMemberField}>
-        + Ещё участник
+        {t('create.addMember')}
       </button>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
         <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          Отмена
+          {t('create.cancel')}
         </button>
         <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? 'Создание...' : 'Создать круг'}
+          {saving ? t('create.submitting') : t('create.submit')}
         </button>
       </div>
     </form>

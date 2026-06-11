@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 const DONATTY_SIGNUP_URL = 'https://donatty.com/creator_bots';
 
 export function getDonattyPageUrl() {
@@ -9,19 +11,19 @@ export function getDonattySignupUrl() {
   return DONATTY_SIGNUP_URL;
 }
 
-export function donattyDonateKeyboard() {
+export function donattyDonateKeyboard(locale = 'ru') {
   const url = getDonattyPageUrl();
   if (!url) return null;
   return {
     inline_keyboard: [[{
-      text: '❤️ Поддержать проект',
+      text: t(locale, 'btn.donate'),
       url,
     }]],
   };
 }
 
-export function appendDonateRow(keyboard) {
-  const donate = donattyDonateKeyboard();
+export function appendDonateRow(keyboard, locale = 'ru') {
+  const donate = donattyDonateKeyboard(locale);
   if (!donate) return keyboard;
   return {
     inline_keyboard: [

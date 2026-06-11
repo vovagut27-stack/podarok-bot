@@ -11,6 +11,7 @@ import {
 import {
   upsertUser,
   getUser,
+  setUserLocale,
   canCreateCircle,
   createCircle,
   getUserCircles,
@@ -62,9 +63,30 @@ export async function createApp() {
   });
 
   app.get('/api/me', authMiddleware, async (req, res) => {
-    await upsertUser(req.telegramUser.id, req.telegramUser.username, req.telegramUser.first_name);
+    await upsertUser(
+      req.telegramUser.id,
+      req.telegramUser.username,
+      req.telegramUser.first_name,
+      req.telegramUser.language_code
+    );
     const user = await getUser(req.telegramUser.id);
     res.json({ user, stats: await getGiftStats(req.telegramUser.id) });
+  });
+
+  app.post('/api/me/locale', authMiddleware, async (req, res) => {
+    const { locale } = req.body || {};
+    if (locale !== 'ru' && locale !== 'en') {
+      return res.status(400).json({ error: 'Invalid locale' });
+    }
+    await upsertUser(
+      req.telegramUser.id,
+      req.telegramUser.username,
+      req.telegramUser.first_name,
+      req.telegramUser.language_code
+    );
+    await setUserLocale(req.telegramUser.id, locale);
+    const user = await getUser(req.telegramUser.id);
+    res.json({ locale: user.locale });
   });
 
   app.get('/api/circles', authMiddleware, async (req, res) => {
@@ -107,7 +129,12 @@ export async function createApp() {
 
   app.post('/api/circles/:id/join', authMiddleware, async (req, res) => {
     const circleId = parseInt(req.params.id, 10);
-    await upsertUser(req.telegramUser.id, req.telegramUser.username, req.telegramUser.first_name);
+    await upsertUser(
+      req.telegramUser.id,
+      req.telegramUser.username,
+      req.telegramUser.first_name,
+      req.telegramUser.language_code
+    );
     const result = await joinCircle(circleId, req.telegramUser.id, req.telegramUser.first_name);
     if (!result.ok) {
       return res.status(404).json({ error: result.error });
@@ -208,7 +235,11 @@ export async function createApp() {
 
   app.post('/api/premium/invoice', authMiddleware, async (req, res) => {
     try {
-      const result = await sendPremiumInvoice(req.telegramUser.id);
+      const result = await sendPremiumInvoice(
+        req.telegramUser.id,
+        req.telegramUser.id,
+        req.telegramUser.language_code
+      );
       res.json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, tg, getStartParam, haptic, buildCircleInviteLink, shareInviteLink } from './api';
+import { useLocale } from './i18n/LocaleContext';
+import { translateApiError } from './i18n/translations';
 import FamilyCircles from './components/FamilyCircles';
 import CreateCircle from './components/CreateCircle';
 import EventCalendar from './components/EventCalendar';
@@ -16,6 +18,7 @@ const VIEWS = {
 };
 
 export default function App() {
+  const { t, locale, setLocale } = useLocale();
   const [view, setView] = useState(VIEWS.home);
   const [user, setUser] = useState(null);
   const [circles, setCircles] = useState([]);
@@ -49,6 +52,10 @@ export default function App() {
       setCircles(circlesData);
       setEvents(eventsData);
 
+      if (me.user?.locale === 'en' || me.user?.locale === 'ru') {
+        setLocale(me.user.locale);
+      }
+
       const startParam = getStartParam();
       if (startParam.startsWith('circle_')) {
         const circleId = parseInt(startParam.replace('circle_', ''), 10);
@@ -63,8 +70,8 @@ export default function App() {
       }
     } catch (err) {
       const msg = err.status === 401
-        ? 'Откройте приложение через Telegram-бота'
-        : err.message;
+        ? t('errors.openInTelegram')
+        : translateApiError(err.message, locale);
       setError(msg);
     } finally {
       setLoading(false);
@@ -97,18 +104,21 @@ export default function App() {
     return (
       <div className="loading">
         <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
-        Загрузка...
+        {t('app.loading')}
       </div>
     );
   }
 
   const headerTitles = {
-    [VIEWS.home]: { title: '🎁 Подарок.бот', subtitle: 'Планируй подарки заранее' },
-    [VIEWS.create]: { title: 'Новый круг', subtitle: 'Объедините людей для совместных подарков' },
-    [VIEWS.circle]: { title: selectedCircle?.circle?.name || 'Круг', subtitle: 'Управление кругом' },
-    [VIEWS.events]: { title: '📅 Календарь', subtitle: 'Ближайшие события' },
-    [VIEWS.wishlist]: { title: '📋 Wishlist', subtitle: selectedCircle?.circle?.name },
-    [VIEWS.settings]: { title: '⚙️ Настройки', subtitle: 'Premium и профиль' },
+    [VIEWS.home]: { title: t('home.title'), subtitle: t('home.subtitle') },
+    [VIEWS.create]: { title: t('create.title'), subtitle: t('create.subtitle') },
+    [VIEWS.circle]: {
+      title: selectedCircle?.circle?.name || t('circle.defaultName'),
+      subtitle: t('circle.subtitle'),
+    },
+    [VIEWS.events]: { title: t('events.title'), subtitle: t('events.subtitle') },
+    [VIEWS.wishlist]: { title: t('wishlist.title'), subtitle: selectedCircle?.circle?.name },
+    [VIEWS.settings]: { title: t('settings.title'), subtitle: t('settings.subtitle') },
   };
 
   const header = headerTitles[view] || headerTitles[VIEWS.home];
@@ -118,7 +128,7 @@ export default function App() {
       <header className="app-header">
         {view !== VIEWS.home && (
           <button className="back-btn" onClick={() => navigate(VIEWS.home)}>
-            ← Назад
+            {t('app.back')}
           </button>
         )}
         <h1>{header.title}</h1>
@@ -161,7 +171,7 @@ export default function App() {
         )}
 
         {view === VIEWS.events && (
-          <EventCalendar events={events} circles={circles} />
+          <EventCalendar events={events} />
         )}
 
         {view === VIEWS.wishlist && selectedCircle && (
@@ -169,7 +179,7 @@ export default function App() {
         )}
 
         {view === VIEWS.settings && (
-          <Settings user={user} onRefresh={loadData} />
+          <Settings user={user} />
         )}
       </div>
 
@@ -179,21 +189,21 @@ export default function App() {
           onClick={() => navigate(VIEWS.home)}
         >
           <span>🏠</span>
-          <span>Круги</span>
+          <span>{t('nav.circles')}</span>
         </button>
         <button
           className={`nav-item ${view === VIEWS.events ? 'active' : ''}`}
           onClick={() => navigate(VIEWS.events)}
         >
           <span>📅</span>
-          <span>События</span>
+          <span>{t('nav.events')}</span>
         </button>
         <button
           className={`nav-item ${view === VIEWS.settings ? 'active' : ''}`}
           onClick={() => navigate(VIEWS.settings)}
         >
           <span>⚙️</span>
-          <span>Ещё</span>
+          <span>{t('nav.more')}</span>
         </button>
       </nav>
     </>
@@ -201,6 +211,7 @@ export default function App() {
 }
 
 function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
+  const { t, locale } = useLocale();
   const [showEventForm, setShowEventForm] = useState(false);
   const [eventForm, setEventForm] = useState({
     name: '',
@@ -220,14 +231,14 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
   const inviteLink = buildCircleInviteLink(botUsername, data.circle.id);
 
   function memberLabel(m) {
-    const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : `User ${m.user_id}`);
-    return name;
+    return m.display_name || m.first_name || (m.username ? `@${m.username}` : `User ${m.user_id}`);
   }
 
   function handleShareInvite() {
     if (!inviteLink) return;
     haptic('medium');
-    shareInviteLink(inviteLink, data.circle.name);
+    const shareText = t('share.inviteText', { name: data.circle.name });
+    shareInviteLink(inviteLink, shareText, t('app.name'));
   }
 
   async function handleCopyInvite() {
@@ -251,7 +262,7 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
       setEventForm({ name: '', eventDate: '', eventType: 'birthday', celebrantName: '' });
       onAddEvent();
     } catch (err) {
-      alert(err.message);
+      alert(translateApiError(err.message, locale));
     } finally {
       setSaving(false);
     }
@@ -266,7 +277,7 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
       setMemberName('');
       onRefresh();
     } catch (err) {
-      alert(err.message);
+      alert(translateApiError(err.message, locale));
     } finally {
       setSaving(false);
     }
@@ -280,20 +291,20 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
       <div className="card">
         <div className="card-title">{data.circle.name}</div>
         <div className="card-subtitle">
-          {data.members.length} участников · {data.events.length} событий
-          {telegramMembers.length > 0 && ` · ${telegramMembers.length} в боте`}
+          {t('circle.stats', { members: data.members.length, events: data.events.length })}
+          {telegramMembers.length > 0 && t('circle.statsInBot', { count: telegramMembers.length })}
         </div>
       </div>
 
-      <div className="section-title">Участники</div>
+      <div className="section-title">{t('circle.members')}</div>
       <div className="card">
         {data.members.length === 0 ? (
-          <div className="card-subtitle">Пока никого — пригласите друзей по ссылке ниже</div>
+          <div className="card-subtitle">{t('circle.membersEmpty')}</div>
         ) : (
           <>
             {telegramMembers.length > 0 && (
               <div className="member-group">
-                <div className="member-group-label">В Telegram</div>
+                <div className="member-group-label">{t('circle.inTelegram')}</div>
                 {telegramMembers.map(m => (
                   <span key={m.user_id} className="member-tag member-tag--bot">
                     {memberLabel(m)}
@@ -304,7 +315,7 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
             )}
             {nameOnlyMembers.length > 0 && (
               <div className="member-group">
-                <div className="member-group-label">Только имя (ещё не в боте)</div>
+                <div className="member-group-label">{t('circle.nameOnly')}</div>
                 {nameOnlyMembers.map(m => (
                   <span key={m.id} className="member-tag member-tag--contact">
                     {memberLabel(m)}
@@ -316,7 +327,7 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
         )}
         <form onSubmit={handleAddMember} style={{ marginTop: 12, display: 'flex', gap: 8 }}>
           <input
-            placeholder="Имя участника"
+            placeholder={t('circle.memberPlaceholder')}
             value={memberName}
             onChange={e => setMemberName(e.target.value)}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb' }}
@@ -327,11 +338,11 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
         </form>
       </div>
 
-      <div className="section-title">События</div>
+      <div className="section-title">{t('circle.events')}</div>
       {data.events.length === 0 ? (
         <div className="empty-state">
           <div className="emoji">📅</div>
-          <p>Добавьте первое событие</p>
+          <p>{t('circle.eventsEmpty')}</p>
         </div>
       ) : (
         data.events.map(ev => (
@@ -342,24 +353,24 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
       {showEventForm ? (
         <form className="card" onSubmit={handleAddEvent}>
           <div className="form-group">
-            <label>Название события</label>
+            <label>{t('circle.eventName')}</label>
             <input
               required
-              placeholder="День рождения Маши"
+              placeholder={t('circle.eventNamePlaceholder')}
               value={eventForm.name}
               onChange={e => setEventForm({ ...eventForm, name: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label>Именинник</label>
+            <label>{t('circle.celebrant')}</label>
             <input
-              placeholder="Маша"
+              placeholder={t('circle.celebrantPlaceholder')}
               value={eventForm.celebrantName}
               onChange={e => setEventForm({ ...eventForm, celebrantName: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label>Дата</label>
+            <label>{t('circle.date')}</label>
             <input
               required
               type="date"
@@ -368,59 +379,57 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
             />
           </div>
           <div className="form-group">
-            <label>Тип</label>
+            <label>{t('circle.type')}</label>
             <select
               value={eventForm.eventType}
               onChange={e => setEventForm({ ...eventForm, eventType: e.target.value })}
             >
-              <option value="birthday">🎂 День рождения</option>
-              <option value="anniversary">💍 Годовщина</option>
-              <option value="holiday">🎄 Праздник</option>
-              <option value="other">📅 Другое</option>
+              <option value="birthday">{t('eventType.birthday')}</option>
+              <option value="anniversary">{t('eventType.anniversary')}</option>
+              <option value="holiday">{t('eventType.holiday')}</option>
+              <option value="other">{t('eventType.other')}</option>
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-secondary" onClick={() => setShowEventForm(false)}>
-              Отмена
+              {t('create.cancel')}
             </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Сохранение...' : 'Добавить'}
+              {saving ? t('circle.saving') : t('circle.add')}
             </button>
           </div>
         </form>
       ) : (
         <button className="btn btn-primary" onClick={() => setShowEventForm(true)}>
-          + Добавить событие
+          {t('circle.addEvent')}
         </button>
       )}
 
       <div style={{ marginTop: 12 }}>
         <button className="btn btn-secondary" onClick={onWishlist}>
-          📋 Мой wishlist
+          {t('circle.myWishlist')}
         </button>
       </div>
 
-      <div className="section-title">Пригласить в круг</div>
+      <div className="section-title">{t('circle.inviteSection')}</div>
       <div className="card invite-card">
         <div className="card-subtitle" style={{ marginBottom: 12 }}>
-          Отправьте ссылку — человек увидит, кто уже в круге, и сможет присоединиться через бота.
+          {t('circle.inviteHint')}
         </div>
         {inviteLink ? (
           <>
             <code className="invite-link">{inviteLink}</code>
             <div className="invite-actions">
               <button type="button" className="btn btn-primary" onClick={handleShareInvite}>
-                📤 Поделиться в Telegram
+                {t('circle.shareTelegram')}
               </button>
               <button type="button" className="btn btn-secondary" onClick={handleCopyInvite}>
-                {copied ? '✓ Скопировано' : '📋 Копировать ссылку'}
+                {copied ? t('circle.copied') : t('circle.copyLink')}
               </button>
             </div>
           </>
         ) : (
-          <div className="card-subtitle">
-            Задайте <code>BOT_USERNAME</code> в настройках Vercel (например, <code>podarok_bot</code>), чтобы включить приглашения.
-          </div>
+          <div className="card-subtitle">{t('circle.inviteSetup')}</div>
         )}
       </div>
     </>
@@ -428,8 +437,14 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
 }
 
 function EventCard({ event }) {
+  const { t } = useLocale();
   const days = daysUntil(event.event_date);
   const emoji = { birthday: '🎂', anniversary: '💍', holiday: '🎄', other: '📅' }[event.event_type] || '📅';
+
+  let countdown;
+  if (days === 0) countdown = t('time.todayExcl');
+  else if (days === 1) countdown = t('time.tomorrow');
+  else countdown = t('time.daysCountdown', { n: days });
 
   return (
     <div className="card">
@@ -438,9 +453,7 @@ function EventCard({ event }) {
           <div className="card-title">{emoji} {event.name}</div>
           <div className="card-subtitle">{event.event_date}</div>
         </div>
-        <div className="countdown">
-          {days === 0 ? 'Сегодня!' : days === 1 ? 'Завтра' : `${days}д`}
-        </div>
+        <div className="countdown">{countdown}</div>
       </div>
     </div>
   );

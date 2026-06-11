@@ -5,8 +5,12 @@ import {
   getUserCircles,
   getWishlistForCelebrant,
   getCirclePreview,
+  getUser,
+  setUserLocale,
+  getUserLocale,
 } from './database.js';
 import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
+import { t, normalizeLocale, dateLocale, pluralDaysLabel } from './i18n.js';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || process.env.WEBHOOK_URL || 'http://localhost:3000';
@@ -67,10 +71,15 @@ export function botInviteUrl(circleId, botUsername) {
   return `https://t.me/${user}?start=circle_${circleId}`;
 }
 
-function formatMemberLine(m) {
-  const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : 'Участник');
+async function resolveLocale(from) {
+  await upsertUser(from.id, from.username, from.first_name, from.language_code);
+  return getUserLocale(from.id, from.language_code);
+}
+
+function formatMemberLine(m, locale) {
+  const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : t(locale, 'member.default'));
   const crown = m.role === 'admin' ? ' 👑' : '';
-  const inBot = m.user_id ? '' : ' (имя)';
+  const inBot = m.user_id ? '' : t(locale, 'member.nameOnly');
   return `• ${name}${crown}${inBot}`;
 }
 
@@ -99,23 +108,39 @@ export async function setWebhook(url) {
   });
 }
 
-export async function setChatMenuButton(chatId, webAppUrl) {
+export async function setChatMenuButton(chatId, webAppUrl, locale = 'ru') {
   return api('setChatMenuButton', {
     chat_id: chatId,
     menu_button: {
       type: 'web_app',
-      text: 'Мои круги',
+      text: t(locale, 'btn.menuCircles'),
       web_app: { url: webAppUrl },
     },
   });
 }
 
-function miniAppKeyboard(startParam = '') {
+function miniAppKeyboard(startParam = '', locale = 'ru') {
   return {
     inline_keyboard: [[
       {
-        text: '🎁 Создать круг',
+        text: t(locale, 'btn.createCircle'),
         web_app: { url: webAppUrl(startParam) },
+      },
+    ]],
+  };
+}
+
+function langKeyboard(activeLocale) {
+  const loc = normalizeLocale(activeLocale);
+  return {
+    inline_keyboard: [[
+      {
+        text: loc === 'ru' ? '✓ 🇷🇺 Русский' : '🇷🇺 Русский',
+        callback_data: 'lang:ru',
+      },
+      {
+        text: loc === 'en' ? '✓ 🇬🇧 English' : '🇬🇧 English',
+        callback_data: 'lang:en',
       },
     ]],
   };
@@ -133,16 +158,48 @@ function daysUntil(dateStr) {
   return Math.ceil((event - today) / (1000 * 60 * 60 * 24));
 }
 
-function formatEventLine(event) {
+function formatEventLine(event, locale) {
   const days = daysUntil(event.event_date);
   const emoji = eventTypeEmoji(event.event_type);
-  const daysText = days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `через ${days} дн.`;
-  return `${emoji} <b>${event.name}</b> — ${daysText} (${event.event_date})\n   Круг: ${event.circle_name}`;
+  let daysText;
+  if (days === 0) daysText = t(locale, 'event.today');
+  else if (days === 1) daysText = t(locale, 'event.tomorrow');
+  else daysText = t(locale, 'event.inDays', { n: days });
+  return `${emoji} <b>${event.name}</b> — ${daysText} (${event.event_date})\n   ${t(locale, 'event.circle')}: ${event.circle_name}`;
+}
+
+function buildHelpText(locale) {
+  const stars = parseInt(process.env.PREMIUM_STARS || '500', 10);
+  return [
+    t(locale, 'help.title'),
+    '',
+    t(locale, 'help.commands'),
+    t(locale, 'help.cmdStart'),
+    t(locale, 'help.cmdRemind'),
+    t(locale, 'help.cmdCircles'),
+    t(locale, 'help.cmdDonate'),
+    t(locale, 'help.cmdPremium'),
+    t(locale, 'help.cmdLang'),
+    t(locale, 'help.cmdHelp'),
+    '',
+    t(locale, 'help.howTitle'),
+    t(locale, 'help.how1'),
+    t(locale, 'help.how2'),
+    t(locale, 'help.how3'),
+    t(locale, 'help.how4'),
+    t(locale, 'help.how5'),
+    '',
+    t(locale, 'help.premiumTitle', { stars }),
+    t(locale, 'help.premium1'),
+    t(locale, 'help.premium2'),
+    t(locale, 'help.premium3'),
+    '',
+    t(locale, 'help.support'),
+  ].join('\n');
 }
 
 export async function handleStart(msg) {
-  const user = msg.from;
-  await upsertUser(user.id, user.username, user.first_name);
+  const locale = await resolveLocale(msg.from);
 
   const rawParam = msg.text?.split(' ')[1] || '';
   const circleId = parseCircleStartParam(rawParam);
@@ -151,91 +208,89 @@ export async function handleStart(msg) {
   if (circleId) {
     const preview = await getCirclePreview(circleId);
     if (preview) {
-      const memberLines = preview.members.map(formatMemberLine).join('\n');
+      const memberLines = preview.members.map(m => formatMemberLine(m, locale)).join('\n');
       const inviteUrl = botInviteUrl(circleId, botUsername);
       const keyboard = {
         inline_keyboard: [[
           {
-            text: '✅ Присоединиться к кругу',
+            text: t(locale, 'btn.joinCircle'),
             web_app: { url: webAppUrl(`circle_${circleId}`) },
           },
         ]],
       };
       if (inviteUrl) {
         keyboard.inline_keyboard.push([{
-          text: '📤 Отправить приглашение друзьям',
-          url: `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(`Присоединяйся к кругу «${preview.circle.name}» в Подарок.бот 🎁`)}`,
+          text: t(locale, 'btn.shareInvite'),
+          url: `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(t(locale, 'invite.shareText', { name: preview.circle.name }))}`,
         }]);
       }
 
-      await setChatMenuButton(msg.chat.id, webAppUrl(`circle_${circleId}`));
+      await setChatMenuButton(msg.chat.id, webAppUrl(`circle_${circleId}`), locale);
       await sendMessage(msg.chat.id,
-        `👥 <b>Приглашение в круг «${preview.circle.name}»</b>\n\n` +
-        `<b>Уже в круге (${preview.memberCount}):</b>\n${memberLines || '• Пока никого'}\n\n` +
-        `Нажмите «Присоединиться», чтобы видеть события, wishlist и напоминания вместе с остальными.`,
-        { reply_markup: appendDonateRow(keyboard) }
+        t(locale, 'invite.title', { name: preview.circle.name }) + '\n\n' +
+        t(locale, 'invite.members', { count: preview.memberCount }) + '\n' +
+        (memberLines || t(locale, 'invite.nobody')) + '\n\n' +
+        t(locale, 'invite.hint'),
+        { reply_markup: appendDonateRow(keyboard, locale) }
       );
       return;
     }
   }
 
   const webUrl = webAppUrl(circleId ? `circle_${circleId}` : '');
-
-  await setChatMenuButton(msg.chat.id, webUrl);
+  await setChatMenuButton(msg.chat.id, webUrl, locale);
 
   await sendMessage(msg.chat.id,
-    `🎁 <b>Добро пожаловать в Подарок.бот!</b>\n\n` +
-    `Планируй подарки заранее — для друзей, близких и коллег. Не забывай о важных датах и всегда знай, что подарить.\n\n` +
-    `<b>Быстрый старт:</b>\n` +
-    `1️⃣ Создай круг подарков\n` +
-    `2️⃣ Добавь людей и их даты\n` +
-    `3️⃣ Получай напоминания с идеями подарков\n\n` +
-    `💡 Приглашай людей по ссылке из карточки круга в Mini App.`,
-    { reply_markup: appendDonateRow(miniAppKeyboard(circleId ? `circle_${circleId}` : '')) }
+    t(locale, 'start.welcome') + '\n\n' +
+    t(locale, 'start.intro') + '\n\n' +
+    t(locale, 'start.quickTitle') + '\n' +
+    t(locale, 'start.step1') + '\n' +
+    t(locale, 'start.step2') + '\n' +
+    t(locale, 'start.step3') + '\n\n' +
+    t(locale, 'start.inviteHint'),
+    { reply_markup: appendDonateRow(miniAppKeyboard(circleId ? `circle_${circleId}` : '', locale), locale) }
   );
 }
 
 export async function handleDonate(msg) {
+  const locale = await resolveLocale(msg.from);
   const url = getDonattyPageUrl();
+
   if (!url) {
     await sendMessage(msg.chat.id,
-      `❤️ <b>Поддержать проект</b>\n\n` +
-      `Страница донатов скоро будет доступна.\n\n` +
-      `Владельцу бота: настройте Donatty → ${process.env.DONATTY_SIGNUP_URL || 'https://donatty.com/creator_bots'}`,
-      { reply_markup: miniAppKeyboard() }
+      t(locale, 'donate.noTitle') + '\n\n' +
+      t(locale, 'donate.noPage') + '\n\n' +
+      t(locale, 'donate.ownerHint', { url: process.env.DONATTY_SIGNUP_URL || 'https://donatty.com/creator_bots' }),
+      { reply_markup: miniAppKeyboard('', locale) }
     );
     return;
   }
 
   await sendMessage(msg.chat.id,
-    `❤️ <b>Поддержать Подарок.бот</b>\n\n` +
-    `Если бот полезен — можно поддержать его развитие.\n` +
-    `Оплата картой, ЮMoney, QIWI и другими способами через Donatty.`,
-    { reply_markup: donattyDonateKeyboard() }
+    t(locale, 'donate.title') + '\n\n' + t(locale, 'donate.text'),
+    { reply_markup: donattyDonateKeyboard(locale) }
   );
 }
 
 export async function handleRemind(msg) {
-  const userId = msg.from.id;
-  await upsertUser(userId, msg.from.username, msg.from.first_name);
-
-  const events = await getUpcomingEvents(userId, 3);
+  const locale = await resolveLocale(msg.from);
+  const events = await getUpcomingEvents(msg.from.id, 3);
 
   if (events.length === 0) {
     await sendMessage(msg.chat.id,
-      '📭 Ближайших событий пока нет.\n\nДобавьте дни рождения в Mini App!',
-      { reply_markup: miniAppKeyboard() }
+      t(locale, 'remind.empty'),
+      { reply_markup: miniAppKeyboard('', locale) }
     );
     return;
   }
 
-  const lines = events.map(formatEventLine).join('\n\n');
+  const lines = events.map(e => formatEventLine(e, locale)).join('\n\n');
   await sendMessage(msg.chat.id,
-    `📅 <b>Ближайшие события:</b>\n\n${lines}`,
+    t(locale, 'remind.title') + '\n\n' + lines,
     {
       reply_markup: {
         inline_keyboard: [[
-          { text: '📱 Открыть календарь', web_app: { url: webAppUrl('events') } },
+          { text: t(locale, 'btn.openCalendar'), web_app: { url: webAppUrl('events') } },
         ]],
       },
     }
@@ -243,21 +298,19 @@ export async function handleRemind(msg) {
 }
 
 export async function handleCircles(msg) {
-  const userId = msg.from.id;
-  await upsertUser(userId, msg.from.username, msg.from.first_name);
-
-  const circles = await getUserCircles(userId);
+  const locale = await resolveLocale(msg.from);
+  const circles = await getUserCircles(msg.from.id);
 
   if (circles.length === 0) {
     await sendMessage(msg.chat.id,
-      '👥 У вас пока нет кругов.\n\nСоздайте первый!',
-      { reply_markup: miniAppKeyboard() }
+      t(locale, 'circles.empty'),
+      { reply_markup: miniAppKeyboard('', locale) }
     );
     return;
   }
 
   const lines = circles.map(c =>
-    `• <b>${c.name}</b> — ${c.member_count} чел., ${c.event_count} событий`
+    t(locale, 'circles.line', { name: c.name, members: c.member_count, events: c.event_count })
   ).join('\n');
 
   const buttons = circles.slice(0, 5).map(c => ([{
@@ -266,34 +319,44 @@ export async function handleCircles(msg) {
   }]));
 
   await sendMessage(msg.chat.id,
-    `👥 <b>Ваши круги:</b>\n\n${lines}`,
+    t(locale, 'circles.title') + '\n\n' + lines,
     { reply_markup: { inline_keyboard: buttons } }
   );
 }
 
 export async function handleHelp(msg) {
+  const locale = await resolveLocale(msg.from);
   await sendMessage(msg.chat.id,
-    `❓ <b>Помощь — Подарок.бот</b>\n\n` +
-    `<b>Команды:</b>\n` +
-    `/start — начать работу\n` +
-    `/напомнить — ближайшие 3 события\n` +
-    `/круги — ваши круги подарков\n` +
-    `/donate — поддержать проект\n` +
-    `/premium — Premium через Stars\n` +
-    `/помощь — эта справка\n\n` +
-    `<b>Как это работает:</b>\n` +
-    `• Создайте круг и добавьте людей\n` +
-    `• Пригласите друзей по ссылке из карточки круга\n` +
-    `• Укажите дни рождения и другие даты\n` +
-    `• Заполните wishlist — список желаемых подарков\n` +
-    `• Бот напомнит за 7, 3 и 1 день до события\n\n` +
-    `<b>Премиум (500 ⭐/мес):</b>\n` +
-    `• Безлимитные круги\n` +
-    `• Расширенная аналитика\n` +
-    `• Кастомные напоминания\n\n` +
-    `Поддержка: @podarok_bot_support`,
-    { reply_markup: appendDonateRow(miniAppKeyboard()) }
+    buildHelpText(locale),
+    { reply_markup: appendDonateRow(miniAppKeyboard('', locale), locale) }
   );
+}
+
+export async function handleLang(msg) {
+  const locale = await resolveLocale(msg.from);
+  await sendMessage(msg.chat.id,
+    t(locale, 'lang.title'),
+    { reply_markup: langKeyboard(locale) }
+  );
+}
+
+export async function handleCallbackQuery(query) {
+  const data = query.data || '';
+
+  if (data.startsWith('lang:')) {
+    const next = normalizeLocale(data.split(':')[1]);
+    await setUserLocale(query.from.id, next);
+    await answerCallbackQuery(query.id, t(next, 'lang.changed'));
+    await sendMessage(
+      query.message.chat.id,
+      next === 'en' ? t(next, 'lang.confirmEn') : t(next, 'lang.confirmRu'),
+      { reply_markup: langKeyboard(next) }
+    );
+    await setChatMenuButton(query.message.chat.id, webAppUrl(), next);
+    return;
+  }
+
+  await answerCallbackQuery(query.id);
 }
 
 export async function handlePreCheckoutQuery(query) {
@@ -302,18 +365,21 @@ export async function handlePreCheckoutQuery(query) {
 
 export async function handleSuccessfulPayment(msg) {
   const userId = msg.from.id;
+  const locale = await getUserLocale(userId, msg.from.language_code);
   const until = new Date();
   until.setMonth(until.getMonth() + 1);
   const { setPremium } = await import('./database.js');
   await setPremium(userId, until.toISOString());
 
   await sendMessage(msg.chat.id,
-    `⭐ <b>Спасибо за Premium!</b>\n\n` +
-    `Теперь у вас безлимитные круги и все премиум-функции до ${until.toLocaleDateString('ru-RU')}.`
+    t(locale, 'premium.thanks') + '\n\n' +
+    t(locale, 'premium.until', { date: until.toLocaleDateString(dateLocale(locale)) })
   );
 }
 
 export async function sendEventReminder(userId, event, daysBefore) {
+  const user = await getUser(userId);
+  const locale = normalizeLocale(user?.locale);
   const emoji = eventTypeEmoji(event.event_type);
   const celebrantName = event.celebrant_name || event.name;
 
@@ -323,14 +389,14 @@ export async function sendEventReminder(userId, event, daysBefore) {
   const topItems = items.slice(0, 5);
 
   if (topItems.length > 0) {
-    giftSection = '\n\n<b>💡 Идеи подарков:</b>\n' +
+    giftSection = '\n\n' + t(locale, 'reminder.giftIdeas') + '\n' +
       topItems.map((item, i) => {
         let line = `${i + 1}. ${item.title}`;
         if (item.price_range) line += ` (${item.price_range})`;
         return line;
       }).join('\n');
   } else {
-    giftSection = '\n\n<i>Wishlist пока пуст — спросите именинника!</i>';
+    giftSection = '\n\n' + t(locale, 'reminder.emptyWishlist');
   }
 
   const keyboard = { inline_keyboard: [] };
@@ -345,33 +411,45 @@ export async function sendEventReminder(userId, event, daysBefore) {
   });
 
   keyboard.inline_keyboard.push([{
-    text: '📋 Открыть wishlist',
+    text: t(locale, 'btn.openWishlist'),
     web_app: { url: webAppUrl(`circle_${event.circle_id}`) },
   }]);
 
   await sendMessage(userId,
-    `${emoji} <b>${event.name}</b> через ${daysBefore} ${daysBefore === 1 ? 'день' : 'дня/дней'}!\n\n` +
-    `📅 Дата: ${event.event_date}\n` +
-    `👨‍👩‍👧‍👦 Круг: ${event.circle_name}` +
-    giftSection,
+    t(locale, 'reminder.body', {
+      emoji,
+      name: event.name,
+      days: daysBefore,
+      daysLabel: pluralDaysLabel(locale, daysBefore),
+      date: event.event_date,
+      circle: event.circle_name,
+    }) + giftSection,
     { reply_markup: keyboard }
   );
 }
 
-export async function sendPremiumInvoice(chatId) {
+export async function sendPremiumInvoice(chatId, userId, languageCode) {
+  const locale = userId
+    ? await getUserLocale(userId, languageCode)
+    : normalizeLocale(languageCode?.startsWith('en') ? 'en' : 'ru');
   const stars = parseInt(process.env.PREMIUM_STARS || '500', 10);
   return api('sendInvoice', {
     chat_id: chatId,
-    title: 'Подарок.бот Premium',
-    description: 'Безлимитные круги, аналитика подарков, кастомные напоминания',
+    title: t(locale, 'premium.invoiceTitle'),
+    description: t(locale, 'premium.invoiceDesc'),
     payload: 'premium_monthly',
     provider_token: '',
     currency: 'XTR',
-    prices: [{ label: 'Premium на 1 месяц', amount: stars }],
+    prices: [{ label: t(locale, 'premium.invoiceLabel'), amount: stars }],
   });
 }
 
 export async function handleUpdate(update) {
+  if (update.callback_query) {
+    await handleCallbackQuery(update.callback_query);
+    return;
+  }
+
   if (update.pre_checkout_query) {
     await handlePreCheckoutQuery(update.pre_checkout_query);
     return;
@@ -395,8 +473,10 @@ export async function handleUpdate(update) {
     await handleCircles(msg);
   } else if (text.startsWith('/помощь') || text.startsWith('/help')) {
     await handleHelp(msg);
+  } else if (text.startsWith('/lang') || text.startsWith('/language') || text.startsWith('/язык')) {
+    await handleLang(msg);
   } else if (text.startsWith('/premium')) {
-    await sendPremiumInvoice(msg.chat.id);
+    await sendPremiumInvoice(msg.chat.id, msg.from.id, msg.from.language_code);
   } else if (text.startsWith('/donate') || text.startsWith('/donat')) {
     await handleDonate(msg);
   }

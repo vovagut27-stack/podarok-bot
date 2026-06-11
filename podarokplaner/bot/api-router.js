@@ -3,6 +3,7 @@ import { validateInitData, sendPremiumInvoice } from './handlers.js';
 import {
   upsertUser,
   getUser,
+  setUserLocale,
   canCreateCircle,
   createCircle,
   getUserCircles,
@@ -50,11 +51,24 @@ export async function handleApiRequest(req, res, path) {
 
   // GET /api/me
   if (method === 'GET' && path === '/api/me') {
-    await upsertUser(user.id, user.username, user.first_name);
+    await upsertUser(user.id, user.username, user.first_name, user.language_code);
+    const dbUser = await getUser(user.id);
     return json(res, 200, {
-      user: await getUser(user.id),
+      user: dbUser,
       stats: await getGiftStats(user.id),
     });
+  }
+
+  // POST /api/me/locale
+  if (method === 'POST' && path === '/api/me/locale') {
+    const { locale } = req.body || {};
+    if (locale !== 'ru' && locale !== 'en') {
+      return json(res, 400, { error: 'Invalid locale' });
+    }
+    await upsertUser(user.id, user.username, user.first_name, user.language_code);
+    await setUserLocale(user.id, locale);
+    const dbUser = await getUser(user.id);
+    return json(res, 200, { locale: dbUser.locale });
   }
 
   // GET /api/circles
@@ -99,7 +113,7 @@ export async function handleApiRequest(req, res, path) {
   m = path.match(/^\/api\/circles\/(\d+)\/join$/);
   if (method === 'POST' && m) {
     const circleId = parseInt(m[1], 10);
-    await upsertUser(user.id, user.username, user.first_name);
+    await upsertUser(user.id, user.username, user.first_name, user.language_code);
     const result = await joinCircle(circleId, user.id, user.first_name);
     if (!result.ok) return json(res, 404, { error: result.error });
     return json(res, 200, result);
@@ -186,7 +200,7 @@ export async function handleApiRequest(req, res, path) {
   // POST /api/premium/invoice
   if (method === 'POST' && path === '/api/premium/invoice') {
     try {
-      const result = await sendPremiumInvoice(user.id);
+      const result = await sendPremiumInvoice(user.id, user.id, user.language_code);
       return json(res, 200, result);
     } catch (err) {
       return json(res, 500, { error: err.message });

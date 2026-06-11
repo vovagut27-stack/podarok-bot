@@ -282,6 +282,34 @@ body {
   gap: 8px;
 }
 
+.lang-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.lang-switch-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--tg-theme-text-color, #1a1a2e);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lang-switch-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.lang-switch-btn:active {
+  opacity: 0.85;
+}
+
 .priority-high { border-left: 3px solid var(--accent); }
 .priority-medium { border-left: 3px solid #fbbf24; }
 .priority-low { border-left: 3px solid #d1d5db; }

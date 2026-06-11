@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api, tg, haptic } from '../api';
+import { useLocale } from '../i18n/LocaleContext';
 
 export default function Settings({ user }) {
+  const { locale, setLocale, t, dateLocale: dl } = useLocale();
   const [config, setConfig] = useState({});
 
   useEffect(() => {
@@ -18,24 +20,51 @@ export default function Settings({ user }) {
     try {
       await api.requestPremium();
       tg?.close();
-    } catch (err) {
-      alert('Для оплаты Premium напишите боту команду /premium');
+    } catch {
+      alert(t('settings.premiumError'));
     }
   }
 
   function openDonate() {
     haptic('medium');
     const url = config.donateUrl;
-    if (url) {
-      tg?.openLink(url);
-    }
+    if (url) tg?.openLink(url);
   }
+
+  function switchLocale(next) {
+    if (next === locale) return;
+    haptic('light');
+    setLocale(next);
+    api.setLocale(next).catch(() => {});
+  }
+
+  const commandsHtml = t('settings.commandsList').replace(/\n/g, '<br />');
 
   return (
     <>
+      <div className="section-title">{t('settings.language')}</div>
+      <div className="card">
+        <div className="lang-switch">
+          <button
+            type="button"
+            className={`lang-switch-btn ${locale === 'ru' ? 'active' : ''}`}
+            onClick={() => switchLocale('ru')}
+          >
+            🇷🇺 {t('settings.languageRu')}
+          </button>
+          <button
+            type="button"
+            className={`lang-switch-btn ${locale === 'en' ? 'active' : ''}`}
+            onClick={() => switchLocale('en')}
+          >
+            🇬🇧 {t('settings.languageEn')}
+          </button>
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-title">
-          {user?.first_name || 'Пользователь'}
+          {user?.first_name || t('app.user')}
           {stats.premium && <span className="premium-badge" style={{ marginLeft: 8 }}>⭐ Premium</span>}
         </div>
         {user?.username && (
@@ -45,13 +74,13 @@ export default function Settings({ user }) {
 
       {config.donateUrl && (
         <>
-          <div className="section-title">Поддержать проект</div>
+          <div className="section-title">{t('settings.support')}</div>
           <div className="card">
             <div className="card-subtitle" style={{ marginBottom: 12, lineHeight: 1.5 }}>
-              Понравился бот? Поддержите его развитие через Donatty — картой, ЮMoney, QIWI и другими способами.
+              {t('settings.supportHint')}
             </div>
             <button className="btn btn-primary" onClick={openDonate}>
-              ❤️ Поддержать на Donatty
+              {t('settings.supportBtn')}
             </button>
           </div>
         </>
@@ -61,49 +90,47 @@ export default function Settings({ user }) {
       <div className="card">
         {stats.premium ? (
           <>
-            <div className="card-title">⭐ Premium активен</div>
+            <div className="card-title">{t('settings.premiumActive')}</div>
             <div className="card-subtitle">
               {stats.premiumUntil
-                ? `До ${new Date(stats.premiumUntil).toLocaleDateString('ru-RU')}`
-                : 'Безлимитные возможности'}
+                ? t('settings.premiumUntil', {
+                    date: new Date(stats.premiumUntil).toLocaleDateString(dl),
+                  })
+                : t('settings.premiumUnlimited')}
             </div>
           </>
         ) : (
           <>
-            <div className="card-title">Бесплатный план</div>
+            <div className="card-title">{t('settings.freePlan')}</div>
             <div className="card-subtitle" style={{ marginBottom: 12 }}>
-              До 3 кругов
+              {t('settings.freeLimit')}
             </div>
             <ul style={{ fontSize: 14, paddingLeft: 20, marginBottom: 16, lineHeight: 1.8 }}>
-              <li>Безлимитные круги</li>
-              <li>Расширенная аналитика подарков</li>
-              <li>Кастомные напоминания</li>
+              <li>{t('settings.premiumFeature1')}</li>
+              <li>{t('settings.premiumFeature2')}</li>
+              <li>{t('settings.premiumFeature3')}</li>
             </ul>
             <button className="btn btn-primary" onClick={handlePremium}>
-              ⭐ Premium — {config.premiumStars || 500} Stars/мес
+              {t('settings.premiumBtn', { stars: config.premiumStars || 500 })}
             </button>
           </>
         )}
       </div>
 
-      <div className="section-title">О приложении</div>
+      <div className="section-title">{t('settings.about')}</div>
       <div className="card">
         <div className="card-subtitle" style={{ lineHeight: 1.6 }}>
-          <b>Подарок.бот</b> — wishlist и напоминания о подарках в Telegram.
-          Планируйте подарки для друзей, близких и коллег заранее.
+          {t('settings.aboutText')}
         </div>
       </div>
 
-      <div className="section-title">Команды бота</div>
+      <div className="section-title">{t('settings.commands')}</div>
       <div className="card">
-        <div className="card-subtitle" style={{ lineHeight: 2 }}>
-          /start — начать<br />
-          /напомнить — ближайшие события<br />
-          /круги — мои круги<br />
-          /donate — поддержать проект<br />
-          /premium — оформить Premium<br />
-          /помощь — справка
-        </div>
+        <div
+          className="card-subtitle"
+          style={{ lineHeight: 2 }}
+          dangerouslySetInnerHTML={{ __html: commandsHtml }}
+        />
       </div>
     </>
   );

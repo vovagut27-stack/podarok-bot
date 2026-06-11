@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api, haptic } from '../api';
+import { useLocale } from '../i18n/LocaleContext';
 
 export default function Wishlist({ circleId }) {
+  const { t } = useLocale();
   const [wishlist, setWishlist] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,23 +51,23 @@ export default function Wishlist({ circleId }) {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Удалить пункт?')) return;
+    if (!confirm(t('wishlist.deleteConfirm'))) return;
     await api.deleteWishlistItem(id);
     await loadWishlist();
   }
 
-  if (loading) return <div className="loading">Загрузка...</div>;
+  if (loading) return <div className="loading">{t('app.loading')}</div>;
 
   return (
     <>
       <p style={{ fontSize: 14, color: 'var(--tg-theme-hint-color)', marginBottom: 16 }}>
-        Добавьте желаемые подарки — участники круга увидят их в напоминаниях
+        {t('wishlist.hint')}
       </p>
 
       {items.length === 0 && !showForm ? (
         <div className="empty-state">
           <div className="emoji">🎁</div>
-          <p>Wishlist пуст</p>
+          <p>{t('wishlist.empty')}</p>
         </div>
       ) : (
         items.map(item => (
@@ -97,7 +99,7 @@ export default function Wishlist({ circleId }) {
                   rel="noopener noreferrer"
                   style={{ fontSize: 13, color: 'var(--accent)' }}
                 >
-                  🔗 Ссылка
+                  {t('wishlist.link')}
                 </a>
               )}
             </div>
@@ -108,32 +110,32 @@ export default function Wishlist({ circleId }) {
       {showForm ? (
         <form className="card" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Название</label>
+            <label>{t('wishlist.itemTitle')}</label>
             <input
               required
-              placeholder="Книга, наушники..."
+              placeholder={t('wishlist.itemTitlePlaceholder')}
               value={form.title}
               onChange={e => setForm({ ...form, title: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label>Описание</label>
+            <label>{t('wishlist.description')}</label>
             <textarea
-              placeholder="Подробности, размер, цвет..."
+              placeholder={t('wishlist.descriptionPlaceholder')}
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label>Ценовой диапазон</label>
+            <label>{t('wishlist.priceRange')}</label>
             <input
-              placeholder="1000-3000 ₽"
+              placeholder={t('wishlist.pricePlaceholder')}
               value={form.priceRange}
               onChange={e => setForm({ ...form, priceRange: e.target.value })}
             />
           </div>
           <div className="form-group">
-            <label>Ссылка на товар</label>
+            <label>{t('wishlist.productUrl')}</label>
             <input
               type="url"
               placeholder="https://..."
@@ -142,28 +144,28 @@ export default function Wishlist({ circleId }) {
             />
           </div>
           <div className="form-group">
-            <label>Приоритет</label>
+            <label>{t('wishlist.priority')}</label>
             <select
               value={form.priority}
               onChange={e => setForm({ ...form, priority: e.target.value })}
             >
-              <option value="3">🔥 Очень хочу</option>
-              <option value="2">👍 Хочу</option>
-              <option value="1">💭 Было бы nice</option>
+              <option value="3">{t('wishlist.priorityHigh')}</option>
+              <option value="2">{t('wishlist.priorityMedium')}</option>
+              <option value="1">{t('wishlist.priorityLow')}</option>
             </select>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
-              Отмена
+              {t('create.cancel')}
             </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? '...' : 'Добавить'}
+              {saving ? '...' : t('circle.add')}
             </button>
           </div>
         </form>
       ) : (
         <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          + Добавить в wishlist
+          {t('wishlist.add')}
         </button>
       )}
     </>
