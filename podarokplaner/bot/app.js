@@ -194,14 +194,17 @@ export async function createApp() {
     }
   });
 
-  app.post('/webhook', async (req, res) => {
+  const webhookHandler = async (req, res) => {
     try {
       await handleUpdate(req.body);
     } catch (err) {
       console.error('[webhook] Error:', err);
     }
     res.sendStatus(200);
-  });
+  };
+
+  app.post('/webhook', webhookHandler);
+  app.post('/api/webhook', webhookHandler);
 
   if (!process.env.VERCEL) {
     app.use(express.static(WEBAPP_DIST));

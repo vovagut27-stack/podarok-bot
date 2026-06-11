@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run vercel-build",
-  "outputDirectory": "webapp/dist",
+  "outputDirectory": "podarokplaner/webapp/dist",
   "installCommand": "npm install",
   "framework": null,
   "rewrites": [
