@@ -54,6 +54,15 @@ export const api = {
     request(`/wishlist-items/${id}`, { method: 'PUT', body: item }),
   deleteWishlistItem: (id) => request(`/wishlist-items/${id}`, { method: 'DELETE' }),
   requestPremium: () => request('/premium/invoice', { method: 'POST' }),
+  getConfig: async () => {
+    const res = await fetch('/api/config');
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  },
 };
 
 export function getStartParam() {

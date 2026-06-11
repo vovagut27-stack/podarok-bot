@@ -1,6 +1,13 @@
+import { useState, useEffect } from 'react';
 import { api, tg, haptic } from '../api';
 
-export default function Settings({ user, onRefresh }) {
+export default function Settings({ user }) {
+  const [config, setConfig] = useState({});
+
+  useEffect(() => {
+    api.getConfig().then(setConfig);
+  }, []);
+
   const stats = user ? {
     premium: user.is_premium,
     premiumUntil: user.premium_until,
@@ -16,6 +23,14 @@ export default function Settings({ user, onRefresh }) {
     }
   }
 
+  function openDonate() {
+    haptic('medium');
+    const url = config.donateUrl;
+    if (url) {
+      tg?.openLink(url);
+    }
+  }
+
   return (
     <>
       <div className="card">
@@ -27,6 +42,20 @@ export default function Settings({ user, onRefresh }) {
           <div className="card-subtitle">@{user.username}</div>
         )}
       </div>
+
+      {config.donateUrl && (
+        <>
+          <div className="section-title">Поддержать проект</div>
+          <div className="card">
+            <div className="card-subtitle" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+              Понравился бот? Поддержите его развитие через Donatty — картой, ЮMoney, QIWI и другими способами.
+            </div>
+            <button className="btn btn-primary" onClick={openDonate}>
+              ❤️ Поддержать на Donatty
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="section-title">Premium</div>
       <div className="card">
@@ -51,7 +80,7 @@ export default function Settings({ user, onRefresh }) {
               <li>Кастомные напоминания</li>
             </ul>
             <button className="btn btn-primary" onClick={handlePremium}>
-              ⭐ Premium — 500 Stars/мес
+              ⭐ Premium — {config.premiumStars || 500} Stars/мес
             </button>
           </>
         )}
@@ -71,6 +100,7 @@ export default function Settings({ user, onRefresh }) {
           /start — начать<br />
           /напомнить — ближайшие события<br />
           /круги — мои круги<br />
+          /donate — поддержать проект<br />
           /premium — оформить Premium<br />
           /помощь — справка
         </div>

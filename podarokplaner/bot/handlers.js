@@ -5,6 +5,7 @@ import {
   getUserCircles,
   getWishlistForCelebrant,
 } from './database.js';
+import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || process.env.WEBHOOK_URL || 'http://localhost:3000';
@@ -134,7 +135,27 @@ export async function handleStart(msg) {
     `1️⃣ Создай круг подарков\n` +
     `2️⃣ Добавь людей и их даты\n` +
     `3️⃣ Получай напоминания с идеями подарков`,
-    { reply_markup: miniAppKeyboard(startParam) }
+    { reply_markup: appendDonateRow(miniAppKeyboard(startParam)) }
+  );
+}
+
+export async function handleDonate(msg) {
+  const url = getDonattyPageUrl();
+  if (!url) {
+    await sendMessage(msg.chat.id,
+      `❤️ <b>Поддержать проект</b>\n\n` +
+      `Страница донатов скоро будет доступна.\n\n` +
+      `Владельцу бота: настройте Donatty → ${process.env.DONATTY_SIGNUP_URL || 'https://donatty.com/creator_bots'}`,
+      { reply_markup: miniAppKeyboard() }
+    );
+    return;
+  }
+
+  await sendMessage(msg.chat.id,
+    `❤️ <b>Поддержать Подарок.бот</b>\n\n` +
+    `Если бот полезен — можно поддержать его развитие.\n` +
+    `Оплата картой, ЮMoney, QIWI и другими способами через Donatty.`,
+    { reply_markup: donattyDonateKeyboard() }
   );
 }
 
@@ -201,6 +222,8 @@ export async function handleHelp(msg) {
     `/start — начать работу\n` +
     `/напомнить — ближайшие 3 события\n` +
     `/круги — ваши круги подарков\n` +
+    `/donate — поддержать проект\n` +
+    `/premium — Premium через Stars\n` +
     `/помощь — эта справка\n\n` +
     `<b>Как это работает:</b>\n` +
     `• Создайте круг и добавьте людей\n` +
@@ -212,7 +235,7 @@ export async function handleHelp(msg) {
     `• Расширенная аналитика\n` +
     `• Кастомные напоминания\n\n` +
     `Поддержка: @podarok_bot_support`,
-    { reply_markup: miniAppKeyboard() }
+    { reply_markup: appendDonateRow(miniAppKeyboard()) }
   );
 }
 
@@ -317,5 +340,7 @@ export async function handleUpdate(update) {
     await handleHelp(msg);
   } else if (text.startsWith('/premium')) {
     await sendPremiumInvoice(msg.chat.id);
+  } else if (text.startsWith('/donate') || text.startsWith('/donat')) {
+    await handleDonate(msg);
   }
 }
