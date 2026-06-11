@@ -1,9 +1,9 @@
-import { handleApiRequest } from '../bot/api-router.js';
+import { handleApiRequest } from '../podarokplaner/bot/api-router.js';
 
 export default async function handler(req, res) {
-  const slug = req.query.slug;
-  const parts = Array.isArray(slug) ? slug : slug ? [slug] : [];
-  const path = '/api/' + parts.join('/');
+  const pathParam = req.query.path;
+  const subpath = Array.isArray(pathParam) ? pathParam.join('/') : (pathParam || '');
+  const path = '/api/' + subpath.replace(/^\/+/, '');
 
   try {
     await handleApiRequest(req, res, path);

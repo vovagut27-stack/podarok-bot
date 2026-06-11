@@ -15,7 +15,18 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      text.startsWith('The page') || text.startsWith('<!DOCTYPE')
+        ? 'Сервер недоступен. Попробуйте позже.'
+        : text.slice(0, 100) || 'Request failed'
+    );
+  }
+
   if (!res.ok) {
     const err = new Error(data.error || 'Request failed');
     err.status = res.status;
