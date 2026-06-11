@@ -52,43 +52,45 @@ export default function CreateCircle({ onCreated, onCancel }) {
     <form onSubmit={handleSubmit}>
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="form-group">
-        <label>{t('create.circleName')}</label>
-        <input
-          required
-          placeholder={t('create.circleNamePlaceholder')}
-          value={name}
-          onChange={e => setName(e.target.value)}
-          autoFocus
-        />
+      <div className="card">
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label>{t('create.circleName')}</label>
+          <input
+            required
+            placeholder={t('create.circleNamePlaceholder')}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoFocus
+          />
+        </div>
       </div>
 
       <div className="section-title">{t('create.membersSection')}</div>
-      <p style={{ fontSize: 13, color: 'var(--tg-theme-hint-color)', marginBottom: 12 }}>
-        {t('create.membersHint')}
-      </p>
+      <p className="form-hint">{t('create.membersHint')}</p>
 
-      {members.map((m, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <input
-            placeholder={t('create.memberN', { n: i + 1 })}
-            value={m.name}
-            onChange={e => updateMember(i, e.target.value)}
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #e5e7eb' }}
-          />
-          {members.length > 1 && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeMember(i)}>
-              ✕
-            </button>
-          )}
-        </div>
-      ))}
+      <div className="card">
+        {members.map((m, i) => (
+          <div key={i} className="input-row" style={{ marginTop: i === 0 ? 0 : 8 }}>
+            <input
+              className="input-inline"
+              placeholder={t('create.memberN', { n: i + 1 })}
+              value={m.name}
+              onChange={e => updateMember(i, e.target.value)}
+            />
+            {members.length > 1 && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => removeMember(i)}>
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
 
-      <button type="button" className="btn btn-ghost" onClick={addMemberField}>
-        {t('create.addMember')}
-      </button>
+        <button type="button" className="btn btn-ghost" onClick={addMemberField} style={{ marginTop: 12 }}>
+          + {t('create.addMember')}
+        </button>
+      </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+      <div className="btn-row" style={{ marginTop: 20 }}>
         <button type="button" className="btn btn-secondary" onClick={onCancel}>
           {t('create.cancel')}
         </button>

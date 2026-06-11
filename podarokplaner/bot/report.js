@@ -6,10 +6,22 @@ async function tgApi(method, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    const err = new Error('Telegram API returned invalid response');
+    err.code = 'TELEGRAM_ERROR';
+    throw err;
+  }
   if (!data.ok) {
     const err = new Error(data.description || 'Telegram API error');
     err.telegram = data;
+    if (data.error_code === 403) {
+      err.code = 'CREATOR_UNREACHABLE';
+    } else {
+      err.code = 'TELEGRAM_ERROR';
+    }
     throw err;
   }
   return data;
@@ -52,14 +64,10 @@ export async function sendReportToCreator(from, messageText, source = 'bot') {
     throw err;
   }
 
-  if (from.id === creatorId) {
-    const err = new Error('Creator cannot report to self');
-    err.code = 'SELF';
-    throw err;
-  }
-
+  const isSelf = Number(from.id) === creatorId;
   const name = from.first_name || 'User';
   const username = from.username ? `@${from.username}` : '—';
+  const sourceLabel = isSelf ? `${source} [self-test]` : source;
 
   await tgApi('sendMessage', {
     chat_id: creatorId,
@@ -68,7 +76,7 @@ export async function sendReportToCreator(from, messageText, source = 'bot') {
       '📩 <b>Report / Репорт</b>\n' +
       `👤 ${escapeHtml(name)} (${escapeHtml(username)})\n` +
       `🆔 <code>${from.id}</code>\n` +
-      `📍 ${escapeHtml(source)}\n\n` +
+      `📍 ${escapeHtml(sourceLabel)}\n\n` +
       escapeHtml(body.slice(0, 3500)),
   });
 }

@@ -56,6 +56,10 @@ const ru = {
   'circle.inviteSetup': 'Задайте BOT_USERNAME в настройках Vercel (например, podarok_bot), чтобы включить приглашения.',
   'circle.saving': 'Сохранение...',
   'circle.add': 'Добавить',
+  'circle.removeMember': 'Удалить из круга',
+  'circle.removeMemberConfirm': 'Удалить {name} из круга?',
+  'circle.cannotRemoveCreator': 'Нельзя удалить создателя круга',
+  'circle.noManageMembers': 'Удалять участников может только админ или создатель круга',
 
   'eventType.birthday': '🎂 День рождения',
   'eventType.anniversary': '💍 Годовщина',
@@ -66,6 +70,8 @@ const ru = {
   'events.subtitle': 'Ближайшие события',
   'events.empty': 'Нет предстоящих событий',
   'events.emptyHint': 'Добавьте даты в круге',
+  'events.delete': 'Удалить',
+  'events.deleteConfirm': 'Удалить это событие?',
 
   'wishlist.title': '📋 Wishlist',
   'wishlist.hint': 'Добавьте желаемые подарки — участники круга увидят их в напоминаниях',
@@ -116,6 +122,7 @@ const ru = {
   'settings.reportSending': 'Отправка…',
   'settings.reportSent': '✅ Репорт отправлен. Спасибо!',
   'settings.reportError': 'Не удалось отправить. Попробуйте команду /report в чате с ботом.',
+  'settings.reportCreatorUnreachable': 'Бот не может написать создателю. Откройте чат с ботом и нажмите /start.',
   'settings.reportDisabled': 'Репорты временно недоступны.',
 
   'time.today': 'Сегодня',
@@ -125,12 +132,15 @@ const ru = {
   'time.days': '{n} дней',
   'time.weeks': '{n} нед.',
   'time.daysCountdown': '{n}д',
+  'time.thisWeek': 'На неделе',
 
   'share.inviteText': 'Присоединяйся к кругу «{name}» в Подарок.бот 🎁',
 
   'errors.openInTelegram': 'Откройте приложение через Telegram-бота',
   'errors.serverUnavailable': 'Сервер недоступен. Попробуйте позже.',
   'errors.noAccess': 'Нет доступа',
+  'errors.noPermission': 'Недостаточно прав',
+  'errors.memberNotFound': 'Участник не найден',
   'errors.circleNotFound': 'Круг не найден',
   'errors.nameRequired': 'Имя обязательно',
   'errors.titleRequired': 'Название круга обязательно',
@@ -195,6 +205,10 @@ const en = {
   'circle.inviteSetup': 'Set BOT_USERNAME in Vercel (e.g. podarok_bot) to enable invites.',
   'circle.saving': 'Saving...',
   'circle.add': 'Add',
+  'circle.removeMember': 'Remove from circle',
+  'circle.removeMemberConfirm': 'Remove {name} from the circle?',
+  'circle.cannotRemoveCreator': 'Cannot remove the circle creator',
+  'circle.noManageMembers': 'Only an admin or the circle creator can remove members',
 
   'eventType.birthday': '🎂 Birthday',
   'eventType.anniversary': '💍 Anniversary',
@@ -205,6 +219,8 @@ const en = {
   'events.subtitle': 'Upcoming events',
   'events.empty': 'No upcoming events',
   'events.emptyHint': 'Add dates in a circle',
+  'events.delete': 'Delete',
+  'events.deleteConfirm': 'Delete this event?',
 
   'wishlist.title': '📋 Wishlist',
   'wishlist.hint': 'Add gift ideas — circle members will see them in reminders',
@@ -255,6 +271,7 @@ const en = {
   'settings.reportSending': 'Sending…',
   'settings.reportSent': '✅ Report sent. Thank you!',
   'settings.reportError': 'Could not send. Try /report in the bot chat.',
+  'settings.reportCreatorUnreachable': 'The bot cannot message the developer. Open the bot chat and tap /start.',
   'settings.reportDisabled': 'Reports are temporarily unavailable.',
 
   'time.today': 'Today',
@@ -264,12 +281,15 @@ const en = {
   'time.days': '{n} days',
   'time.weeks': '{n} wk',
   'time.daysCountdown': '{n}d',
+  'time.thisWeek': 'This week',
 
   'share.inviteText': 'Join the «{name}» circle in Podarok.bot 🎁',
 
   'errors.openInTelegram': 'Open the app via the Telegram bot',
   'errors.serverUnavailable': 'Server unavailable. Please try again later.',
   'errors.noAccess': 'Access denied',
+  'errors.noPermission': 'Insufficient permissions',
+  'errors.memberNotFound': 'Member not found',
   'errors.circleNotFound': 'Circle not found',
   'errors.nameRequired': 'Name is required',
   'errors.titleRequired': 'Circle name is required',
@@ -280,6 +300,9 @@ export const translations = { ru, en };
 
 const API_ERROR_MAP = {
   'Нет доступа': 'errors.noAccess',
+  'Нет прав на удаление участников': 'errors.noPermission',
+  'Нельзя удалить создателя круга': 'circle.cannotRemoveCreator',
+  'Участник не найден': 'errors.memberNotFound',
   'Круг не найден': 'errors.circleNotFound',
   'Имя обязательно': 'errors.nameRequired',
   'Название круга обязательно': 'errors.titleRequired',

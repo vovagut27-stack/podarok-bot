@@ -1,14 +1,15 @@
 import { useLocale } from '../i18n/LocaleContext';
+import EventCard from './EventCard';
 
-export default function EventCalendar({ events }) {
+export default function EventCalendar({ events, onDelete }) {
   const { t, dateLocale: dl } = useLocale();
 
   if (events.length === 0) {
     return (
       <div className="empty-state">
-        <div className="emoji">📅</div>
+        <div className="empty-state-icon">📅</div>
         <p>{t('events.empty')}</p>
-        <p style={{ fontSize: 13, marginTop: 8 }}>{t('events.emptyHint')}</p>
+        <p className="empty-hint">{t('events.emptyHint')}</p>
       </div>
     );
   }
@@ -21,43 +22,17 @@ export default function EventCalendar({ events }) {
         <div key={month}>
           <div className="section-title">{month}</div>
           {monthEvents.map(event => (
-            <div key={event.id} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div className="card-title">
-                    {eventTypeEmoji(event.event_type)} {event.name}
-                  </div>
-                  <div className="card-subtitle">
-                    {event.circle_name}
-                    {event.celebrant_name && ` · ${event.celebrant_name}`}
-                  </div>
-                  <div style={{ fontSize: 13, marginTop: 4, color: 'var(--tg-theme-hint-color)' }}>
-                    {formatDate(event.event_date, dl)}
-                  </div>
-                </div>
-                <CountdownBadge dateStr={event.event_date} t={t} />
-              </div>
-            </div>
+            <EventCard
+              key={event.id}
+              event={event}
+              onDelete={onDelete}
+              showCircle
+              showDateDetail
+            />
           ))}
         </div>
       ))}
     </>
-  );
-}
-
-function CountdownBadge({ dateStr, t }) {
-  const days = daysUntil(dateStr);
-
-  if (days === 0) {
-    return <span className="badge" style={{ background: '#fef2f2', color: '#dc2626' }}>{t('time.todayExcl')}</span>;
-  }
-  if (days === 1) return <span className="badge">{t('time.tomorrow')}</span>;
-  if (days <= 7) return <span className="badge">{t('time.days', { n: days })}</span>;
-  if (days <= 30) return <span className="badge" style={{ background: '#f3f4f6', color: '#6b7280' }}>{t('time.daysShort', { n: days })}</span>;
-  return (
-    <span className="badge" style={{ background: '#f3f4f6', color: '#6b7280' }}>
-      {t('time.weeks', { n: Math.ceil(days / 7) })}
-    </span>
   );
 }
 
@@ -70,20 +45,4 @@ function groupByMonth(events, dl) {
     months[key].push(event);
   }
   return months;
-}
-
-function eventTypeEmoji(type) {
-  return { birthday: '🎂', anniversary: '💍', holiday: '🎄', other: '📅' }[type] || '📅';
-}
-
-function formatDate(dateStr, dl) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString(dl, { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-function daysUntil(dateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const event = new Date(dateStr + 'T00:00:00');
-  return Math.ceil((event - today) / (1000 * 60 * 60 * 24));
 }

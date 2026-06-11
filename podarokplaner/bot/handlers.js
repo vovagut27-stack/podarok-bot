@@ -449,9 +449,7 @@ export async function handleHelp(msg) {
 }
 
 export async function handleReport(msg) {
-  const locale = localeFromTelegram(msg.from);
-
-  upsertUser(msg.from.id, msg.from.username, msg.from.first_name, msg.from.language_code).catch(() => {});
+  const locale = await resolveLocale(msg.from);
 
   if (!getCreatorId()) {
     await sendMessagePlain(msg.chat.id, t(locale, 'report.notConfigured'));
@@ -470,8 +468,10 @@ export async function handleReport(msg) {
     await sendReportToCreator(msg.from, body, 'bot /report');
     await sendPlainMessage(msg.chat.id, t(locale, 'report.sent'));
   } catch (err) {
-    console.error('[report]', err.message);
-    const key = err.code === 'EMPTY' ? 'report.empty' : 'report.notConfigured';
+    console.error('[report]', err.message, err.telegram || '');
+    let key = 'report.notConfigured';
+    if (err.code === 'EMPTY') key = 'report.empty';
+    else if (err.code === 'CREATOR_UNREACHABLE') key = 'report.creatorUnreachable';
     await sendMessage(msg.chat.id, t(locale, key), {
       reply_markup: reportReplyKeyboard(locale),
     });

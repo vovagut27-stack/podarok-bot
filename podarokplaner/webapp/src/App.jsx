@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { api, tg, getStartParam, haptic, buildCircleInviteLink, shareInviteLink } from './api';
 import { useLocale } from './i18n/LocaleContext';
 import { translateApiError } from './i18n/translations';
+import { isPremiumUser } from './userUtils';
+import { circleInitials } from './ui';
 import FamilyCircles from './components/FamilyCircles';
 import CreateCircle from './components/CreateCircle';
 import EventCalendar from './components/EventCalendar';
 import Wishlist from './components/Wishlist';
 import Settings from './components/Settings';
+import EventCard from './components/EventCard';
 
 const VIEWS = {
   home: 'home',
@@ -105,10 +108,24 @@ export default function App() {
     }
   }
 
+  async function handleDeleteEvent(eventId) {
+    try {
+      await api.deleteEvent(eventId);
+      haptic('success');
+      await loadData();
+      if (selectedCircle?.circle?.id) {
+        const data = await api.getCircle(selectedCircle.circle.id);
+        setSelectedCircle(data);
+      }
+    } catch (err) {
+      alert(translateApiError(err.message, locale));
+    }
+  }
+
   if (loading) {
     return (
-      <div className="loading">
-        <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
+      <div className="loading-screen">
+        <div className="loading-gift">🎁</div>
         {t('app.loading')}
       </div>
     );
@@ -131,14 +148,20 @@ export default function App() {
   return (
     <>
       <header className="app-header">
-        {view !== VIEWS.home && (
-          <button className="back-btn" onClick={() => navigate(VIEWS.home)}>
-            {t('app.back')}
-          </button>
-        )}
-        <h1>{header.title}</h1>
-        <p>{header.subtitle}</p>
-        {user?.is_premium && <span className="premium-badge">⭐ Premium</span>}
+        <div className="app-header-inner">
+          {view !== VIEWS.home && (
+            <button type="button" className="back-btn" onClick={() => navigate(VIEWS.home)}>
+              ← {t('app.back')}
+            </button>
+          )}
+          <div className="app-header-top">
+            <div>
+              <h1>{header.title}</h1>
+              <p>{header.subtitle}</p>
+            </div>
+            {isPremiumUser(user) && <span className="premium-badge">⭐ Premium</span>}
+          </div>
+        </div>
       </header>
 
       <div className="content">
@@ -169,6 +192,7 @@ export default function App() {
         {view === VIEWS.circle && selectedCircle && (
           <CircleDetail
             data={selectedCircle}
+            currentUserId={user?.telegram_id ?? user?.id}
             onRefresh={refreshCircle}
             onWishlist={() => navigate(VIEWS.wishlist, selectedCircle)}
             onAddEvent={refreshCircle}
@@ -176,7 +200,7 @@ export default function App() {
         )}
 
         {view === VIEWS.events && (
-          <EventCalendar events={events} />
+          <EventCalendar events={events} onDelete={handleDeleteEvent} />
         )}
 
         {view === VIEWS.wishlist && selectedCircle && (
@@ -190,24 +214,27 @@ export default function App() {
 
       <nav className="bottom-nav">
         <button
+          type="button"
           className={`nav-item ${view === VIEWS.home || view === VIEWS.circle || view === VIEWS.create ? 'active' : ''}`}
           onClick={() => navigate(VIEWS.home)}
         >
-          <span>🏠</span>
+          <span className="nav-icon">🏠</span>
           <span>{t('nav.circles')}</span>
         </button>
         <button
+          type="button"
           className={`nav-item ${view === VIEWS.events ? 'active' : ''}`}
           onClick={() => navigate(VIEWS.events)}
         >
-          <span>📅</span>
+          <span className="nav-icon">📅</span>
           <span>{t('nav.events')}</span>
         </button>
         <button
+          type="button"
           className={`nav-item ${view === VIEWS.settings ? 'active' : ''}`}
           onClick={() => navigate(VIEWS.settings)}
         >
-          <span>⚙️</span>
+          <span className="nav-icon">✨</span>
           <span>{t('nav.more')}</span>
         </button>
       </nav>
@@ -215,7 +242,7 @@ export default function App() {
   );
 }
 
-function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
+function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }) {
   const { t, locale } = useLocale();
   const [showEventForm, setShowEventForm] = useState(false);
   const [eventForm, setEventForm] = useState({
@@ -288,16 +315,65 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
     }
   }
 
+  async function handleDeleteEvent(eventId) {
+    try {
+      await api.deleteEvent(eventId);
+      haptic('success');
+      onRefresh();
+    } catch (err) {
+      alert(translateApiError(err.message, locale));
+    }
+  }
+
+  async function handleRemoveMember(member) {
+    const name = memberLabel(member);
+    if (!confirm(t('circle.removeMemberConfirm', { name }))) return;
+    haptic('medium');
+    try {
+      const memberRef = member.id;
+      await api.removeMember(data.circle.id, memberRef);
+      haptic('success');
+      onRefresh();
+    } catch (err) {
+      alert(translateApiError(err.message, locale));
+    }
+  }
+
+  const canManageMembers = (() => {
+    if (!currentUserId) return false;
+    if (Number(data.circle.creator_id) === Number(currentUserId)) return true;
+    const me = data.members.find(m => Number(m.user_id) === Number(currentUserId));
+    return me?.role === 'admin';
+  })();
+
+  function canRemoveMember(member) {
+    if (!canManageMembers) return false;
+    if (member.user_id && Number(member.user_id) === Number(data.circle.creator_id)) {
+      return false;
+    }
+    return true;
+  }
+
   const telegramMembers = data.members.filter(m => m.user_id);
   const nameOnlyMembers = data.members.filter(m => !m.user_id);
 
   return (
     <>
-      <div className="card">
-        <div className="card-title">{data.circle.name}</div>
-        <div className="card-subtitle">
-          {t('circle.stats', { members: data.members.length, events: data.events.length })}
-          {telegramMembers.length > 0 && t('circle.statsInBot', { count: telegramMembers.length })}
+      <div className="card hero-card">
+        <div className="circle-row">
+          <div
+            className="circle-avatar"
+            style={{ background: 'rgba(255,255,255,0.25)', boxShadow: 'none' }}
+          >
+            {circleInitials(data.circle.name)}
+          </div>
+          <div className="circle-row-body">
+            <div className="card-title">{data.circle.name}</div>
+            <div className="card-subtitle">
+              {t('circle.stats', { members: data.members.length, events: data.events.length })}
+              {telegramMembers.length > 0 && t('circle.statsInBot', { count: telegramMembers.length })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -310,32 +386,45 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
             {telegramMembers.length > 0 && (
               <div className="member-group">
                 <div className="member-group-label">{t('circle.inTelegram')}</div>
-                {telegramMembers.map(m => (
-                  <span key={m.user_id} className="member-tag member-tag--bot">
-                    {memberLabel(m)}
-                    {m.role === 'admin' && ' 👑'}
-                  </span>
-                ))}
+                <div className="member-list">
+                  {telegramMembers.map(m => (
+                    <MemberRow
+                      key={m.user_id}
+                      member={m}
+                      label={memberLabel(m) + (m.role === 'admin' ? ' 👑' : '')}
+                      variant="bot"
+                      canRemove={canRemoveMember(m)}
+                      onRemove={() => handleRemoveMember(m)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             {nameOnlyMembers.length > 0 && (
               <div className="member-group">
                 <div className="member-group-label">{t('circle.nameOnly')}</div>
-                {nameOnlyMembers.map(m => (
-                  <span key={m.id} className="member-tag member-tag--contact">
-                    {memberLabel(m)}
-                  </span>
-                ))}
+                <div className="member-list">
+                  {nameOnlyMembers.map(m => (
+                    <MemberRow
+                      key={m.id}
+                      member={m}
+                      label={memberLabel(m)}
+                      variant="contact"
+                      canRemove={canRemoveMember(m)}
+                      onRemove={() => handleRemoveMember(m)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </>
         )}
-        <form onSubmit={handleAddMember} style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+        <form onSubmit={handleAddMember} className="input-row">
           <input
+            className="input-inline"
             placeholder={t('circle.memberPlaceholder')}
             value={memberName}
             onChange={e => setMemberName(e.target.value)}
-            style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb' }}
           />
           <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
             +
@@ -346,12 +435,12 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
       <div className="section-title">{t('circle.events')}</div>
       {data.events.length === 0 ? (
         <div className="empty-state">
-          <div className="emoji">📅</div>
+          <div className="empty-state-icon">📅</div>
           <p>{t('circle.eventsEmpty')}</p>
         </div>
       ) : (
         data.events.map(ev => (
-          <EventCard key={ev.id} event={ev} />
+          <EventCard key={ev.id} event={ev} onDelete={handleDeleteEvent} />
         ))
       )}
 
@@ -395,7 +484,7 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
               <option value="other">{t('eventType.other')}</option>
             </select>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="btn-row">
             <button type="button" className="btn btn-secondary" onClick={() => setShowEventForm(false)}>
               {t('create.cancel')}
             </button>
@@ -405,14 +494,14 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
           </div>
         </form>
       ) : (
-        <button className="btn btn-primary" onClick={() => setShowEventForm(true)}>
-          {t('circle.addEvent')}
+        <button type="button" className="btn btn-primary" onClick={() => setShowEventForm(true)}>
+          📅 {t('circle.addEvent')}
         </button>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        <button className="btn btn-secondary" onClick={onWishlist}>
-          {t('circle.myWishlist')}
+      <div className="action-stack">
+        <button type="button" className="btn btn-secondary" onClick={onWishlist}>
+          🎁 {t('circle.myWishlist')}
         </button>
       </div>
 
@@ -441,32 +530,20 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
   );
 }
 
-function EventCard({ event }) {
-  const { t } = useLocale();
-  const days = daysUntil(event.event_date);
-  const emoji = { birthday: '🎂', anniversary: '💍', holiday: '🎄', other: '📅' }[event.event_type] || '📅';
-
-  let countdown;
-  if (days === 0) countdown = t('time.todayExcl');
-  else if (days === 1) countdown = t('time.tomorrow');
-  else countdown = t('time.daysCountdown', { n: days });
-
+function MemberRow({ label, variant, canRemove, onRemove }) {
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div className="card-title">{emoji} {event.name}</div>
-          <div className="card-subtitle">{event.event_date}</div>
-        </div>
-        <div className="countdown">{countdown}</div>
-      </div>
+    <div className="member-row">
+      <span className={`member-tag member-tag--${variant}`}>{label}</span>
+      {canRemove && (
+        <button
+          type="button"
+          className="member-remove-btn btn btn-ghost btn-sm btn-delete"
+          onClick={onRemove}
+          aria-label="Remove"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
-}
-
-function daysUntil(dateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const event = new Date(dateStr + 'T00:00:00');
-  return Math.ceil((event - today) / (1000 * 60 * 60 * 24));
 }

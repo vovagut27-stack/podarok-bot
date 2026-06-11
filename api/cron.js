@@ -1,3 +1,4 @@
+import { initDb } from '../podarokplaner/bot/database.js';
 import { processReminders } from '../podarokplaner/bot/notifications.js';
 
 export default async function handler(req, res) {
@@ -7,6 +8,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    await initDb();
     await processReminders();
     res.json({ ok: true });
   } catch (err) {

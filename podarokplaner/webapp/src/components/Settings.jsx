@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { api, tg, haptic } from '../api';
 import { useLocale } from '../i18n/LocaleContext';
+import { translateApiError } from '../i18n/translations';
+import { isPremiumUser } from '../userUtils';
 
 export default function Settings({ user, focusReport = false }) {
   const { locale, setLocale, t, dateLocale: dl } = useLocale();
@@ -8,6 +10,7 @@ export default function Settings({ user, focusReport = false }) {
   const [reportText, setReportText] = useState('');
   const [reportSending, setReportSending] = useState(false);
   const [reportDone, setReportDone] = useState(false);
+  const [reportError, setReportError] = useState('');
   const reportSectionRef = useRef(null);
 
   useEffect(() => {
@@ -21,17 +24,25 @@ export default function Settings({ user, focusReport = false }) {
   }, [focusReport, config.reportEnabled]);
 
   const stats = user ? {
-    premium: user.is_premium,
+    premium: isPremiumUser(user),
     premiumUntil: user.premium_until,
   } : {};
+
+  function showAlert(message) {
+    if (tg?.showAlert) tg.showAlert(message);
+    else alert(message);
+  }
 
   async function handlePremium() {
     haptic('medium');
     try {
       await api.requestPremium();
-      alert(t('settings.premiumSent'));
-    } catch {
-      alert(t('settings.premiumError'));
+      showAlert(t('settings.premiumSent'));
+    } catch (err) {
+      const message = err.message && err.message !== 'Request failed'
+        ? translateApiError(err.message, locale)
+        : t('settings.premiumError');
+      showAlert(message);
     }
   }
 
@@ -48,19 +59,36 @@ export default function Settings({ user, focusReport = false }) {
     api.setLocale(next).catch(() => {});
   }
 
-  async function handleSendReport(e) {
-    e.preventDefault();
+  function showReportError(message) {
+    setReportError(message);
+    if (tg?.showAlert) tg.showAlert(message);
+  }
+
+  async function handleSendReport() {
     if (!reportText.trim() || reportSending) return;
     haptic('medium');
     setReportSending(true);
     setReportDone(false);
+    setReportError('');
     try {
       await api.sendReport(reportText.trim());
       setReportText('');
       setReportDone(true);
       haptic('success');
-    } catch {
-      alert(t('settings.reportError'));
+    } catch (err) {
+      const code = err.data?.code;
+      let message = t('settings.reportError');
+      if (code === 'CREATOR_UNREACHABLE') {
+        message = t('settings.reportCreatorUnreachable');
+      } else if (code === 'NOT_CONFIGURED') {
+        message = t('settings.reportDisabled');
+      } else if (err.status === 401) {
+        message = t('errors.openInTelegram');
+      } else if (err.message && err.message !== 'Request failed') {
+        message = translateApiError(err.message, locale);
+      }
+      showReportError(message);
+      haptic('error');
     } finally {
       setReportSending(false);
     }
@@ -93,7 +121,7 @@ export default function Settings({ user, focusReport = false }) {
       <div className="card">
         <div className="card-title">
           {user?.first_name || t('app.user')}
-          {stats.premium && <span className="premium-badge" style={{ marginLeft: 8 }}>⭐ Premium</span>}
+          {stats.premium && <span className="premium-badge-inline">⭐ Premium</span>}
         </div>
         {user?.username && (
           <div className="card-subtitle">@{user.username}</div>
@@ -104,35 +132,33 @@ export default function Settings({ user, focusReport = false }) {
         <>
           <div className="section-title" ref={reportSectionRef}>{t('settings.report')}</div>
           <div className="card">
-            <div className="card-subtitle" style={{ marginBottom: 12, lineHeight: 1.5 }}>
-              {t('settings.reportHint')}
-            </div>
-            <form onSubmit={handleSendReport}>
-                <textarea
-                  required
-                  placeholder={t('settings.reportPlaceholder')}
-                  value={reportText}
-                  onChange={e => setReportText(e.target.value)}
-                  style={{
-                    width: '100%',
-                    minHeight: 100,
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: '1px solid #e5e7eb',
-                    fontSize: 15,
-                    marginBottom: 12,
-                    resize: 'vertical',
-                  }}
-                />
-                {reportDone && (
-                  <div className="card-subtitle" style={{ marginBottom: 12, color: '#047857' }}>
-                    {t('settings.reportSent')}
-                  </div>
-                )}
-                <button type="submit" className="btn btn-primary" disabled={reportSending || !reportText.trim()}>
-                  {reportSending ? t('settings.reportSending') : t('settings.reportSend')}
-                </button>
-              </form>
+            <p className="form-hint">{t('settings.reportHint')}</p>
+            <form onSubmit={(e) => { e.preventDefault(); handleSendReport(); }}>
+              <textarea
+                className="textarea-field"
+                required
+                placeholder={t('settings.reportPlaceholder')}
+                value={reportText}
+                onChange={e => {
+                  setReportText(e.target.value);
+                  if (reportError) setReportError('');
+                }}
+              />
+              {reportDone && (
+                <div className="success-text">{t('settings.reportSent')}</div>
+              )}
+              {reportError && (
+                <div className="error-text">{reportError}</div>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSendReport}
+                disabled={reportSending || !reportText.trim()}
+              >
+                {reportSending ? t('settings.reportSending') : t('settings.reportSend')}
+              </button>
+            </form>
           </div>
         </>
       )}
@@ -141,11 +167,9 @@ export default function Settings({ user, focusReport = false }) {
         <>
           <div className="section-title">{t('settings.support')}</div>
           <div className="card">
-            <div className="card-subtitle" style={{ marginBottom: 12, lineHeight: 1.5 }}>
-              {t('settings.supportHint')}
-            </div>
-            <button className="btn btn-primary" onClick={openDonate}>
-              {t('settings.supportBtn')}
+            <p className="form-hint">{t('settings.supportHint')}</p>
+            <button type="button" className="btn btn-primary" onClick={openDonate}>
+              ❤️ {t('settings.supportBtn')}
             </button>
           </div>
         </>
@@ -155,7 +179,7 @@ export default function Settings({ user, focusReport = false }) {
       <div className="card">
         {stats.premium ? (
           <>
-            <div className="card-title">{t('settings.premiumActive')}</div>
+            <div className="card-title">⭐ {t('settings.premiumActive')}</div>
             <div className="card-subtitle">
               {stats.premiumUntil
                 ? t('settings.premiumUntil', {
@@ -167,16 +191,14 @@ export default function Settings({ user, focusReport = false }) {
         ) : (
           <>
             <div className="card-title">{t('settings.freePlan')}</div>
-            <div className="card-subtitle" style={{ marginBottom: 12 }}>
-              {t('settings.freeLimit')}
-            </div>
-            <ul style={{ fontSize: 14, paddingLeft: 20, marginBottom: 16, lineHeight: 1.8 }}>
+            <p className="form-hint">{t('settings.freeLimit')}</p>
+            <ul className="feature-list">
               <li>{t('settings.premiumFeature1')}</li>
               <li>{t('settings.premiumFeature2')}</li>
               <li>{t('settings.premiumFeature3')}</li>
             </ul>
-            <button className="btn btn-primary" onClick={handlePremium}>
-              {t('settings.premiumBtn', { stars: config.premiumStars || 500 })}
+            <button type="button" className="btn btn-primary" onClick={handlePremium}>
+              ⭐ {t('settings.premiumBtn', { stars: config.premiumStars || 500 })}
             </button>
           </>
         )}
@@ -184,16 +206,13 @@ export default function Settings({ user, focusReport = false }) {
 
       <div className="section-title">{t('settings.about')}</div>
       <div className="card">
-        <div className="card-subtitle" style={{ lineHeight: 1.6 }}>
-          {t('settings.aboutText')}
-        </div>
+        <p className="form-hint" style={{ marginBottom: 0 }}>{t('settings.aboutText')}</p>
       </div>
 
       <div className="section-title">{t('settings.commands')}</div>
       <div className="card">
         <div
-          className="card-subtitle"
-          style={{ lineHeight: 2 }}
+          className="card-subtitle commands-list"
           dangerouslySetInnerHTML={{ __html: commandsHtml }}
         />
       </div>

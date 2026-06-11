@@ -47,6 +47,8 @@ export const api = {
   joinCircle: (id) => request(`/circles/${id}/join`, { method: 'POST' }),
   addMember: (circleId, displayName) =>
     request(`/circles/${circleId}/members`, { method: 'POST', body: { displayName } }),
+  removeMember: (circleId, memberRef) =>
+    request(`/circles/${circleId}/members/${encodeURIComponent(memberRef)}`, { method: 'DELETE' }),
   createEvent: (circleId, data) =>
     request(`/circles/${circleId}/events`, { method: 'POST', body: data }),
   deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),

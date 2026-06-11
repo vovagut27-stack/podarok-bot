@@ -60,13 +60,11 @@ export default function Wishlist({ circleId }) {
 
   return (
     <>
-      <p style={{ fontSize: 14, color: 'var(--tg-theme-hint-color)', marginBottom: 16 }}>
-        {t('wishlist.hint')}
-      </p>
+      <p className="form-hint">{t('wishlist.hint')}</p>
 
       {items.length === 0 && !showForm ? (
         <div className="empty-state">
-          <div className="emoji">🎁</div>
+          <div className="empty-state-icon">🎁</div>
           <p>{t('wishlist.empty')}</p>
         </div>
       ) : (
@@ -75,31 +73,29 @@ export default function Wishlist({ circleId }) {
             key={item.id}
             className={`card priority-${priorityClass(item.priority)}`}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div className="card-title">{item.title}</div>
               <button
-                className="btn btn-ghost btn-sm"
+                type="button"
+                className="btn btn-ghost btn-sm btn-delete"
                 onClick={() => handleDelete(item.id)}
-                style={{ color: '#dc2626' }}
               >
                 ✕
               </button>
             </div>
             {item.description && (
-              <p style={{ fontSize: 13, marginTop: 4, color: 'var(--tg-theme-hint-color)' }}>
-                {item.description}
-              </p>
+              <p className="wishlist-desc">{item.description}</p>
             )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <div className="wishlist-meta">
               {item.price_range && <span className="badge">{item.price_range}</span>}
               {item.url && (
                 <a
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: 'var(--accent)' }}
+                  className="wishlist-link"
                 >
-                  {t('wishlist.link')}
+                  {t('wishlist.link')} →
                 </a>
               )}
             </div>
@@ -154,7 +150,7 @@ export default function Wishlist({ circleId }) {
               <option value="1">{t('wishlist.priorityLow')}</option>
             </select>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="btn-row">
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
               {t('create.cancel')}
             </button>
@@ -164,8 +160,8 @@ export default function Wishlist({ circleId }) {
           </div>
         </form>
       ) : (
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          {t('wishlist.add')}
+        <button type="button" className="btn btn-primary" onClick={() => setShowForm(true)}>
+          🎁 {t('wishlist.add')}
         </button>
       )}
     </>

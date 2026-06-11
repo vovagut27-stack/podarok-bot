@@ -91,6 +91,7 @@ const ru = {
   'report.sent': '✅ Репорт отправлен разработчику. Спасибо!',
   'report.empty': 'Добавьте текст сообщения.\n\nПример: <code>/report не открывается календарь</code>',
   'report.notConfigured': 'Отправка репортов временно недоступна.',
+  'report.creatorUnreachable': 'Бот не может написать разработчику. Разработчику нужно нажать /start в этом боте.',
   'report.btnMiniApp': '📱 Форма репорта',
   'report.btnSend': '📩 Написать репорт',
 };
@@ -187,6 +188,7 @@ const en = {
   'report.sent': '✅ Report sent to the developer. Thank you!',
   'report.empty': 'Please add a message.\n\nExample: <code>/report the calendar does not load</code>',
   'report.notConfigured': 'Reports are temporarily unavailable.',
+  'report.creatorUnreachable': 'The bot cannot message the developer. The developer must tap /start in this bot.',
   'report.btnMiniApp': '📱 Open report form',
   'report.btnSend': '📩 Send report',
 };

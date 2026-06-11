@@ -319,6 +319,73 @@ export async function isCircleMember(circleId, userId) {
   return !!row;
 }
 
+export async function canManageCircleMembers(circleId, userId) {
+  if (!(await isCircleMember(circleId, userId))) return false;
+  const circle = await getCircle(circleId);
+  if (Number(circle?.creator_id) === Number(userId)) return true;
+  const row = await one(
+    'SELECT role FROM circle_members WHERE circle_id = ? AND user_id = ?',
+    [circleId, userId]
+  );
+  return row?.role === 'admin';
+}
+
+export async function removeMemberFromCircle(circleId, requesterId, memberRef) {
+  if (!(await canManageCircleMembers(circleId, requesterId))) {
+    const err = new Error('Нет прав на удаление участников');
+    err.code = 'FORBIDDEN';
+    throw err;
+  }
+
+  const circle = await getCircle(circleId);
+  const ref = String(memberRef);
+
+  if (ref.startsWith('contact_')) {
+    const contactId = parseInt(ref.replace('contact_', ''), 10);
+    if (!Number.isFinite(contactId)) {
+      const err = new Error('Участник не найден');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    const contact = await one(
+      'SELECT id FROM circle_contacts WHERE id = ? AND circle_id = ?',
+      [contactId, circleId]
+    );
+    if (!contact) {
+      const err = new Error('Участник не найден');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    await exec('DELETE FROM circle_contacts WHERE id = ? AND circle_id = ?', [contactId, circleId]);
+    return getCircleMembers(circleId);
+  }
+
+  const rowId = parseInt(ref, 10);
+  if (!Number.isFinite(rowId)) {
+    const err = new Error('Участник не найден');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  const member = await one(
+    'SELECT * FROM circle_members WHERE id = ? AND circle_id = ?',
+    [rowId, circleId]
+  );
+  if (!member) {
+    const err = new Error('Участник не найден');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+  if (Number(member.user_id) === Number(circle.creator_id)) {
+    const err = new Error('Нельзя удалить создателя круга');
+    err.code = 'CREATOR';
+    throw err;
+  }
+
+  await exec('DELETE FROM circle_members WHERE id = ? AND circle_id = ?', [rowId, circleId]);
+  return getCircleMembers(circleId);
+}
+
 export async function createEvent(circleId, name, eventDate, eventType, celebrantId, celebrantName) {
   const result = await exec(`
     INSERT INTO events (circle_id, name, event_date, event_type, celebrant_id, celebrant_name)
@@ -408,6 +475,19 @@ export async function getWishlistForCelebrant(circleId, celebrantName) {
   `, [wishlist.id]);
 
   return { wishlist, items };
+}
+
+export async function getWishlistById(wishlistId) {
+  return one('SELECT * FROM wishlists WHERE id = ?', [wishlistId]);
+}
+
+export async function getWishlistItemWithOwner(itemId) {
+  return one(`
+    SELECT wi.*, w.user_id as owner_id, w.circle_id
+    FROM wishlist_items wi
+    JOIN wishlists w ON w.id = wi.wishlist_id
+    WHERE wi.id = ?
+  `, [itemId]);
 }
 
 export async function getWishlistItems(wishlistId) {

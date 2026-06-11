@@ -21,10 +21,14 @@ import {
   addCircleContact,
   joinCircle,
   isCircleMember,
+  removeMemberFromCircle,
   createEvent,
   getCircleEvents,
   getUpcomingEvents,
+  getEvent,
   getOrCreateWishlist,
+  getWishlistById,
+  getWishlistItemWithOwner,
   getWishlistItems,
   addWishlistItem,
   updateWishlistItem,
@@ -167,6 +171,25 @@ export async function createApp() {
     res.json(await getCircleMembers(circleId));
   });
 
+  app.delete('/api/circles/:id/members/:memberRef', authMiddleware, async (req, res) => {
+    const circleId = parseInt(req.params.id, 10);
+    const memberRef = decodeURIComponent(req.params.memberRef);
+    if (!(await isCircleMember(circleId, req.telegramUser.id))) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    try {
+      const members = await removeMemberFromCircle(circleId, req.telegramUser.id, memberRef);
+      res.json({ ok: true, members });
+    } catch (err) {
+      const code = err.code || 'FAILED';
+      const status = code === 'FORBIDDEN' ? 403
+        : code === 'NOT_FOUND' ? 404
+        : code === 'CREATOR' ? 400
+        : 500;
+      res.status(status).json({ error: err.message, code });
+    }
+  });
+
   app.post('/api/circles/:id/events', authMiddleware, async (req, res) => {
     const circleId = parseInt(req.params.id, 10);
     if (!(await isCircleMember(circleId, req.telegramUser.id))) {
@@ -188,7 +211,15 @@ export async function createApp() {
   });
 
   app.delete('/api/events/:id', authMiddleware, async (req, res) => {
-    await deleteEvent(parseInt(req.params.id, 10));
+    const eventId = parseInt(req.params.id, 10);
+    const event = await getEvent(eventId);
+    if (!event) {
+      return res.status(404).json({ error: 'Событие не найдено' });
+    }
+    if (!(await isCircleMember(event.circle_id, req.telegramUser.id))) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    await deleteEvent(eventId);
     res.json({ ok: true });
   });
 
@@ -208,6 +239,10 @@ export async function createApp() {
 
   app.post('/api/wishlists/:id/items', authMiddleware, async (req, res) => {
     const wishlistId = parseInt(req.params.id, 10);
+    const wishlist = await getWishlistById(wishlistId);
+    if (!wishlist || Number(wishlist.user_id) !== req.telegramUser.id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
     const { title, description, priceRange, url, priority } = req.body;
     if (!title?.trim()) {
       return res.status(400).json({ error: 'Название обязательно' });
@@ -224,19 +259,42 @@ export async function createApp() {
   });
 
   app.put('/api/wishlist-items/:id', authMiddleware, async (req, res) => {
-    const item = await updateWishlistItem(parseInt(req.params.id, 10), req.body);
+    const itemId = parseInt(req.params.id, 10);
+    const existing = await getWishlistItemWithOwner(itemId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Не найдено' });
+    }
+    if (Number(existing.owner_id) !== req.telegramUser.id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    const body = req.body || {};
+    const item = await updateWishlistItem(itemId, {
+      title: body.title,
+      description: body.description,
+      price_range: body.price_range ?? body.priceRange,
+      url: body.url,
+      priority: body.priority,
+    });
     res.json(item);
   });
 
   app.delete('/api/wishlist-items/:id', authMiddleware, async (req, res) => {
-    await deleteWishlistItem(parseInt(req.params.id, 10));
+    const itemId = parseInt(req.params.id, 10);
+    const existing = await getWishlistItemWithOwner(itemId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Не найдено' });
+    }
+    if (Number(existing.owner_id) !== req.telegramUser.id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    await deleteWishlistItem(itemId);
     res.json({ ok: true });
   });
 
   app.post('/api/report', authMiddleware, async (req, res) => {
-    const { message } = req.body || {};
-    if (!message?.trim()) {
-      return res.status(400).json({ error: 'Message required' });
+    const message = req.body?.message ?? req.body?.text ?? req.body?.body;
+    if (!String(message || '').trim()) {
+      return res.status(400).json({ error: 'Message required', code: 'EMPTY' });
     }
     try {
       await upsertUser(
@@ -247,13 +305,21 @@ export async function createApp() {
       );
       const { sendReportToCreator, getCreatorId } = await import('./report.js');
       if (!getCreatorId()) {
-        return res.status(503).json({ error: 'Reports not configured' });
+        return res.status(503).json({ error: 'Reports not configured', code: 'NOT_CONFIGURED' });
       }
-      await sendReportToCreator(req.telegramUser, message.trim(), 'Mini App');
+      await sendReportToCreator(req.telegramUser, String(message).trim(), 'Mini App');
       res.json({ ok: true });
     } catch (err) {
-      console.error('[api/report]', err.message);
-      res.status(500).json({ error: err.message || 'Failed to send report' });
+      console.error('[api/report]', err.message, err.telegram || '');
+      const code = err.code || 'FAILED';
+      const status = code === 'CREATOR_UNREACHABLE' ? 502
+        : code === 'NOT_CONFIGURED' ? 503
+        : code === 'EMPTY' ? 400
+        : 500;
+      res.status(status).json({
+        error: err.message || 'Failed to send report',
+        code,
+      });
     }
   });
 
