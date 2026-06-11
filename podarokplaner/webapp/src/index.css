@@ -241,6 +241,47 @@ body {
   margin: 4px 4px 0 0;
 }
 
+.member-tag--bot {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.member-tag--contact {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.member-group {
+  margin-bottom: 12px;
+}
+
+.member-group:last-child {
+  margin-bottom: 0;
+}
+
+.member-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-theme-hint-color, #6b7280);
+  margin-bottom: 6px;
+}
+
+.invite-card .invite-link {
+  display: block;
+  font-size: 12px;
+  word-break: break-all;
+  background: #f9fafb;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.invite-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .priority-high { border-left: 3px solid var(--accent); }
 .priority-medium { border-left: 3px solid #fbbf24; }
 .priority-low { border-left: 3px solid #d1d5db; }

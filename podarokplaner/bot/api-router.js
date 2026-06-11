@@ -8,7 +8,9 @@ import {
   getUserCircles,
   getCircle,
   getCircleMembers,
+  getCirclePreview,
   addCircleContact,
+  joinCircle,
   isCircleMember,
   createEvent,
   getCircleEvents,
@@ -84,8 +86,27 @@ export async function handleApiRequest(req, res, path) {
     return json(res, 200, await getUpcomingEvents(user.id, 10));
   }
 
+  // GET /api/circles/:id/preview
+  let m = path.match(/^\/api\/circles\/(\d+)\/preview$/);
+  if (method === 'GET' && m) {
+    const circleId = parseInt(m[1], 10);
+    const preview = await getCirclePreview(circleId);
+    if (!preview) return json(res, 404, { error: 'Круг не найден' });
+    return json(res, 200, preview);
+  }
+
+  // POST /api/circles/:id/join
+  m = path.match(/^\/api\/circles\/(\d+)\/join$/);
+  if (method === 'POST' && m) {
+    const circleId = parseInt(m[1], 10);
+    await upsertUser(user.id, user.username, user.first_name);
+    const result = await joinCircle(circleId, user.id, user.first_name);
+    if (!result.ok) return json(res, 404, { error: result.error });
+    return json(res, 200, result);
+  }
+
   // GET /api/circles/:id
-  let m = path.match(/^\/api\/circles\/(\d+)$/);
+  m = path.match(/^\/api\/circles\/(\d+)$/);
   if (method === 'GET' && m) {
     const circleId = parseInt(m[1], 10);
     if (!(await isCircleMember(circleId, user.id))) return json(res, 403, { error: 'Нет доступа' });

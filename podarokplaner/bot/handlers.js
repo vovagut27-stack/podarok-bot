@@ -4,6 +4,7 @@ import {
   getUpcomingEvents,
   getUserCircles,
   getWishlistForCelebrant,
+  getCirclePreview,
 } from './database.js';
 import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
 
@@ -51,6 +52,26 @@ export function validateInitData(initData) {
 export function webAppUrl(startParam = '') {
   const base = WEBAPP_URL.replace(/\/$/, '');
   return startParam ? `${base}?startapp=${startParam}` : base;
+}
+
+export function parseCircleStartParam(param = '') {
+  if (!param) return null;
+  const cleaned = param.replace(/^circle_/, '');
+  const id = parseInt(cleaned, 10);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function botInviteUrl(circleId, botUsername) {
+  const user = botUsername?.replace(/^@/, '');
+  if (!user) return null;
+  return `https://t.me/${user}?start=circle_${circleId}`;
+}
+
+function formatMemberLine(m) {
+  const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : 'Участник');
+  const crown = m.role === 'admin' ? ' 👑' : '';
+  const inBot = m.user_id ? '' : ' (имя)';
+  return `• ${name}${crown}${inBot}`;
 }
 
 async function api(method, body) {
@@ -123,8 +144,42 @@ export async function handleStart(msg) {
   const user = msg.from;
   await upsertUser(user.id, user.username, user.first_name);
 
-  const startParam = msg.text?.split(' ')[1] || '';
-  const webUrl = webAppUrl(startParam ? `circle_${startParam.replace('circle_', '')}` : '');
+  const rawParam = msg.text?.split(' ')[1] || '';
+  const circleId = parseCircleStartParam(rawParam);
+  const botUsername = process.env.BOT_USERNAME?.replace(/^@/, '');
+
+  if (circleId) {
+    const preview = await getCirclePreview(circleId);
+    if (preview) {
+      const memberLines = preview.members.map(formatMemberLine).join('\n');
+      const inviteUrl = botInviteUrl(circleId, botUsername);
+      const keyboard = {
+        inline_keyboard: [[
+          {
+            text: '✅ Присоединиться к кругу',
+            web_app: { url: webAppUrl(`circle_${circleId}`) },
+          },
+        ]],
+      };
+      if (inviteUrl) {
+        keyboard.inline_keyboard.push([{
+          text: '📤 Отправить приглашение друзьям',
+          url: `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(`Присоединяйся к кругу «${preview.circle.name}» в Подарок.бот 🎁`)}`,
+        }]);
+      }
+
+      await setChatMenuButton(msg.chat.id, webAppUrl(`circle_${circleId}`));
+      await sendMessage(msg.chat.id,
+        `👥 <b>Приглашение в круг «${preview.circle.name}»</b>\n\n` +
+        `<b>Уже в круге (${preview.memberCount}):</b>\n${memberLines || '• Пока никого'}\n\n` +
+        `Нажмите «Присоединиться», чтобы видеть события, wishlist и напоминания вместе с остальными.`,
+        { reply_markup: appendDonateRow(keyboard) }
+      );
+      return;
+    }
+  }
+
+  const webUrl = webAppUrl(circleId ? `circle_${circleId}` : '');
 
   await setChatMenuButton(msg.chat.id, webUrl);
 
@@ -134,8 +189,9 @@ export async function handleStart(msg) {
     `<b>Быстрый старт:</b>\n` +
     `1️⃣ Создай круг подарков\n` +
     `2️⃣ Добавь людей и их даты\n` +
-    `3️⃣ Получай напоминания с идеями подарков`,
-    { reply_markup: appendDonateRow(miniAppKeyboard(startParam)) }
+    `3️⃣ Получай напоминания с идеями подарков\n\n` +
+    `💡 Приглашай людей по ссылке из карточки круга в Mini App.`,
+    { reply_markup: appendDonateRow(miniAppKeyboard(circleId ? `circle_${circleId}` : '')) }
   );
 }
 
@@ -227,6 +283,7 @@ export async function handleHelp(msg) {
     `/помощь — эта справка\n\n` +
     `<b>Как это работает:</b>\n` +
     `• Создайте круг и добавьте людей\n` +
+    `• Пригласите друзей по ссылке из карточки круга\n` +
     `• Укажите дни рождения и другие даты\n` +
     `• Заполните wishlist — список желаемых подарков\n` +
     `• Бот напомнит за 7, 3 и 1 день до события\n\n` +

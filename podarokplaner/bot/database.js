@@ -213,9 +213,32 @@ export async function getUserCircles(userId) {
 
 export async function addCircleMember(circleId, userId, role = 'member', displayName = null) {
   await exec(`
-    INSERT INTO circle_members (circle_id, user_id, role, display_name)
+    INSERT OR IGNORE INTO circle_members (circle_id, user_id, role, display_name)
     VALUES (?, ?, ?, ?)
   `, [circleId, userId, role, displayName]);
+}
+
+export async function joinCircle(circleId, userId, displayName = null) {
+  const circle = await getCircle(circleId);
+  if (!circle) return { ok: false, error: 'Круг не найден' };
+
+  const alreadyMember = await isCircleMember(circleId, userId);
+  if (!alreadyMember) {
+    await addCircleMember(circleId, userId, 'member', displayName);
+  }
+  return { ok: true, alreadyMember, circle };
+}
+
+export async function getCirclePreview(circleId) {
+  const circle = await getCircle(circleId);
+  if (!circle) return null;
+  const members = await getCircleMembers(circleId);
+  return {
+    circle,
+    members,
+    memberCount: members.length,
+    telegramMemberCount: members.filter(m => m.user_id).length,
+  };
 }
 
 export async function addCircleContact(circleId, name) {

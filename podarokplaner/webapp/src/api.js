@@ -41,6 +41,8 @@ export const api = {
   getCircles: () => request('/circles'),
   createCircle: (name, members) => request('/circles', { method: 'POST', body: { name, members } }),
   getCircle: (id) => request(`/circles/${id}`),
+  getCirclePreview: (id) => request(`/circles/${id}/preview`),
+  joinCircle: (id) => request(`/circles/${id}/join`, { method: 'POST' }),
   addMember: (circleId, displayName) =>
     request(`/circles/${circleId}/members`, { method: 'POST', body: { displayName } }),
   createEvent: (circleId, data) =>
@@ -64,6 +66,26 @@ export const api = {
     }
   },
 };
+
+export function buildCircleInviteLink(botUsername, circleId) {
+  const user = botUsername?.replace(/^@/, '');
+  if (!user || !circleId) return '';
+  return `https://t.me/${user}?start=circle_${circleId}`;
+}
+
+export function shareInviteLink(link, circleName) {
+  const text = `Присоединяйся к кругу «${circleName}» в Подарок.бот 🎁`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
+    return;
+  }
+  if (navigator.share) {
+    navigator.share({ title: 'Подарок.бот', text, url: link }).catch(() => {});
+    return;
+  }
+  navigator.clipboard?.writeText(`${text}\n${link}`);
+}
 
 export function getStartParam() {
   const params = new URLSearchParams(window.location.search);

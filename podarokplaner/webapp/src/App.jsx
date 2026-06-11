@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, tg, getStartParam, haptic } from './api';
+import { api, tg, getStartParam, haptic, buildCircleInviteLink, shareInviteLink } from './api';
 import FamilyCircles from './components/FamilyCircles';
 import CreateCircle from './components/CreateCircle';
 import EventCalendar from './components/EventCalendar';
@@ -53,6 +53,7 @@ export default function App() {
       if (startParam.startsWith('circle_')) {
         const circleId = parseInt(startParam.replace('circle_', ''), 10);
         if (circleId) {
+          await api.joinCircle(circleId);
           const data = await api.getCircle(circleId);
           setSelectedCircle(data);
           setView(VIEWS.circle);
@@ -209,6 +210,37 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
   });
   const [memberName, setMemberName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [botUsername, setBotUsername] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.getConfig().then(cfg => setBotUsername(cfg.botUsername || ''));
+  }, []);
+
+  const inviteLink = buildCircleInviteLink(botUsername, data.circle.id);
+
+  function memberLabel(m) {
+    const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : `User ${m.user_id}`);
+    return name;
+  }
+
+  function handleShareInvite() {
+    if (!inviteLink) return;
+    haptic('medium');
+    shareInviteLink(inviteLink, data.circle.name);
+  }
+
+  async function handleCopyInvite() {
+    if (!inviteLink) return;
+    haptic('light');
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert(inviteLink);
+    }
+  }
 
   async function handleAddEvent(e) {
     e.preventDefault();
@@ -240,9 +272,8 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
     }
   }
 
-  const shareUrl = tg?.initDataUnsafe?.start_param
-    ? undefined
-    : `${window.location.origin}?startapp=circle_${data.circle.id}`;
+  const telegramMembers = data.members.filter(m => m.user_id);
+  const nameOnlyMembers = data.members.filter(m => !m.user_id);
 
   return (
     <>
@@ -250,17 +281,39 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
         <div className="card-title">{data.circle.name}</div>
         <div className="card-subtitle">
           {data.members.length} участников · {data.events.length} событий
+          {telegramMembers.length > 0 && ` · ${telegramMembers.length} в боте`}
         </div>
       </div>
 
       <div className="section-title">Участники</div>
       <div className="card">
-        {data.members.map(m => (
-          <span key={m.user_id} className="member-tag">
-            {m.display_name || m.first_name || m.username || `User ${m.user_id}`}
-            {m.role === 'admin' && ' 👑'}
-          </span>
-        ))}
+        {data.members.length === 0 ? (
+          <div className="card-subtitle">Пока никого — пригласите друзей по ссылке ниже</div>
+        ) : (
+          <>
+            {telegramMembers.length > 0 && (
+              <div className="member-group">
+                <div className="member-group-label">В Telegram</div>
+                {telegramMembers.map(m => (
+                  <span key={m.user_id} className="member-tag member-tag--bot">
+                    {memberLabel(m)}
+                    {m.role === 'admin' && ' 👑'}
+                  </span>
+                ))}
+              </div>
+            )}
+            {nameOnlyMembers.length > 0 && (
+              <div className="member-group">
+                <div className="member-group-label">Только имя (ещё не в боте)</div>
+                {nameOnlyMembers.map(m => (
+                  <span key={m.id} className="member-tag member-tag--contact">
+                    {memberLabel(m)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         <form onSubmit={handleAddMember} style={{ marginTop: 12, display: 'flex', gap: 8 }}>
           <input
             placeholder="Имя участника"
@@ -347,12 +400,29 @@ function CircleDetail({ data, onRefresh, onWishlist, onAddEvent }) {
         </button>
       </div>
 
-      {shareUrl && (
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="card-subtitle">Поделиться кругом</div>
-          <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{shareUrl}</code>
+      <div className="section-title">Пригласить в круг</div>
+      <div className="card invite-card">
+        <div className="card-subtitle" style={{ marginBottom: 12 }}>
+          Отправьте ссылку — человек увидит, кто уже в круге, и сможет присоединиться через бота.
         </div>
-      )}
+        {inviteLink ? (
+          <>
+            <code className="invite-link">{inviteLink}</code>
+            <div className="invite-actions">
+              <button type="button" className="btn btn-primary" onClick={handleShareInvite}>
+                📤 Поделиться в Telegram
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={handleCopyInvite}>
+                {copied ? '✓ Скопировано' : '📋 Копировать ссылку'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="card-subtitle">
+            Задайте <code>BOT_USERNAME</code> в настройках Vercel (например, <code>podarok_bot</code>), чтобы включить приглашения.
+          </div>
+        )}
+      </div>
     </>
   );
 }

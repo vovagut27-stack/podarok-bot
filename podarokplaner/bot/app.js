@@ -16,7 +16,9 @@ import {
   getUserCircles,
   getCircle,
   getCircleMembers,
+  getCirclePreview,
   addCircleContact,
+  joinCircle,
   isCircleMember,
   createEvent,
   getCircleEvents,
@@ -92,6 +94,25 @@ export async function createApp() {
     }
 
     res.json(circle);
+  });
+
+  app.get('/api/circles/:id/preview', authMiddleware, async (req, res) => {
+    const circleId = parseInt(req.params.id, 10);
+    const preview = await getCirclePreview(circleId);
+    if (!preview) {
+      return res.status(404).json({ error: 'Круг не найден' });
+    }
+    res.json(preview);
+  });
+
+  app.post('/api/circles/:id/join', authMiddleware, async (req, res) => {
+    const circleId = parseInt(req.params.id, 10);
+    await upsertUser(req.telegramUser.id, req.telegramUser.username, req.telegramUser.first_name);
+    const result = await joinCircle(circleId, req.telegramUser.id, req.telegramUser.first_name);
+    if (!result.ok) {
+      return res.status(404).json({ error: result.error });
+    }
+    res.json(result);
   });
 
   app.get('/api/circles/:id', authMiddleware, async (req, res) => {
