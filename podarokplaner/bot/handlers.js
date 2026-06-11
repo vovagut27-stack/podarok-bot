@@ -600,6 +600,11 @@ export async function handlePremium(msg) {
   }
 }
 
+export async function handleAppssVerify(msg) {
+  const code = process.env.APPSS_VERIFY_CODE || 'appss_9e4c4d';
+  await sendMessagePlain(msg.chat.id, code);
+}
+
 export async function handleUpdate(update) {
   if (update.callback_query) {
     await handleCallbackQuery(update.callback_query);
@@ -627,7 +632,9 @@ export async function handleUpdate(update) {
   const cmd = getCommandFromMessage(msg);
   if (cmd) console.log('[bot] command:', cmd, 'from', msg.from?.id);
 
-  if (matchesCommand(msg, '/start')) {
+  if (matchesCommand(msg, '/appss_verify')) {
+    await handleAppssVerify(msg);
+  } else if (matchesCommand(msg, '/start')) {
     await handleStart(msg);
   } else if (matchesCommand(msg, '/напомнить', '/remind')) {
     await handleRemind(msg);
