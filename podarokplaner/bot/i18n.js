@@ -69,8 +69,10 @@ const ru = {
   'premium.invoiceTitle': 'Подарок.бот Premium',
   'premium.invoiceDesc': 'Безлимитные круги, аналитика подарков, кастомные напоминания',
   'premium.invoiceLabel': 'Premium на 1 месяц',
-  'premium.failed': '❌ Не удалось открыть оплату Premium.\n\nПопробуйте позже или напишите в поддержку.\n\n<i>Если вы владелец бота: включите Monetization в @BotFather → Bot Settings → Payments.</i>',
+  'premium.failed': '❌ Не удалось открыть оплату Premium.\n\n{detail}\n\nВладельцу бота: @BotFather → /mybots → Bot Settings → Payments → включите Stars.',
   'premium.alreadyActive': '⭐ Premium уже активен!',
+  'premium.alreadyActiveUntil': '⭐ Premium активен до {date}.',
+  'premium.processing': '⏳ Готовлю счёт на оплату Premium…',
   'premium.payPrompt': '⭐ Нажмите кнопку ниже, чтобы оплатить Premium:',
   'premium.payBtn': 'Оплатить {stars} ⭐',
 
@@ -155,8 +157,10 @@ const en = {
   'premium.invoiceTitle': 'Podarok.bot Premium',
   'premium.invoiceDesc': 'Unlimited circles, gift analytics, custom reminders',
   'premium.invoiceLabel': 'Premium for 1 month',
-  'premium.failed': '❌ Could not open Premium payment.\n\nTry again later or contact support.\n\n<i>Bot owner: enable Monetization in @BotFather → Bot Settings → Payments.</i>',
+  'premium.failed': '❌ Could not open Premium payment.\n\n{detail}\n\nBot owner: @BotFather → /mybots → Bot Settings → Payments → enable Stars.',
   'premium.alreadyActive': '⭐ Premium is already active!',
+  'premium.alreadyActiveUntil': '⭐ Premium active until {date}.',
+  'premium.processing': '⏳ Preparing your Premium invoice…',
   'premium.payPrompt': '⭐ Tap the button below to pay for Premium:',
   'premium.payBtn': 'Pay {stars} ⭐',
 

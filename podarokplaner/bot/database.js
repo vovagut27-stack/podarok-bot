@@ -166,13 +166,23 @@ function num(value) {
 
 export async function upsertUser(telegramId, username, firstName, languageCode) {
   const defaultLocale = languageCode?.startsWith('en') ? 'en' : 'ru';
-  await exec(`
-    INSERT INTO users (telegram_id, username, first_name, locale)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(telegram_id) DO UPDATE SET
-      username = excluded.username,
-      first_name = excluded.first_name
-  `, [telegramId, username || null, firstName || null, defaultLocale]);
+  try {
+    await exec(`
+      INSERT INTO users (telegram_id, username, first_name, locale)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(telegram_id) DO UPDATE SET
+        username = excluded.username,
+        first_name = excluded.first_name
+    `, [telegramId, username || null, firstName || null, defaultLocale]);
+  } catch {
+    await exec(`
+      INSERT INTO users (telegram_id, username, first_name)
+      VALUES (?, ?, ?)
+      ON CONFLICT(telegram_id) DO UPDATE SET
+        username = excluded.username,
+        first_name = excluded.first_name
+    `, [telegramId, username || null, firstName || null]);
+  }
   return one('SELECT * FROM users WHERE telegram_id = ?', [telegramId]);
 }
 

@@ -77,14 +77,41 @@ async function resolveLocale(from) {
   return getUserLocale(from.id, from.language_code);
 }
 
-function getCommand(text) {
-  if (!text?.startsWith('/')) return '';
-  return text.trim().split(/\s/)[0].split('@')[0].toLowerCase();
+function normalizeMessageText(text) {
+  return (text || '').replace(/^\uFEFF/, '').trim();
 }
 
-function isCommand(text, ...names) {
+function extractIncomingMessage(update) {
+  return update.message ?? update.edited_message ?? update.business_message ?? null;
+}
+
+function getCommand(text) {
+  const normalized = normalizeMessageText(text);
+  if (!normalized.startsWith('/')) return '';
+  return normalized.split(/\s/)[0].split('@')[0].toLowerCase();
+}
+
+function getCommandFromMessage(msg) {
+  const text = normalizeMessageText(msg.text || msg.caption || '');
   const cmd = getCommand(text);
+  if (cmd) return cmd;
+
+  const entity = msg.entities?.find(e => e.type === 'bot_command')
+    || msg.caption_entities?.find(e => e.type === 'bot_command');
+  if (entity && text) {
+    return text.slice(entity.offset, entity.offset + entity.length).split('@')[0].toLowerCase();
+  }
+  return '';
+}
+
+function matchesCommand(msg, ...names) {
+  const cmd = getCommandFromMessage(msg);
   return names.some(n => cmd === n.toLowerCase());
+}
+
+function localeFromTelegram(from, dbUser) {
+  if (dbUser?.locale === 'en' || dbUser?.locale === 'ru') return dbUser.locale;
+  return from?.language_code?.startsWith('en') ? 'en' : 'ru';
 }
 
 function buildPremiumInvoiceBody(locale) {
@@ -124,7 +151,19 @@ async function api(method, body) {
 }
 
 export async function sendMessage(chatId, text, options = {}) {
-  return api('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...options });
+  try {
+    return await api('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...options });
+  } catch (err) {
+    if (options.parse_mode !== false) {
+      const plain = text.replace(/<[^>]+>/g, '');
+      return api('sendMessage', { chat_id: chatId, text: plain, ...options, parse_mode: undefined });
+    }
+    throw err;
+  }
+}
+
+async function sendMessagePlain(chatId, text, options = {}) {
+  return api('sendMessage', { chat_id: chatId, text, ...options });
 }
 
 export async function answerCallbackQuery(callbackQueryId, text) {
@@ -134,8 +173,22 @@ export async function answerCallbackQuery(callbackQueryId, text) {
 export async function setWebhook(url) {
   return api('setWebhook', {
     url: `${url}/webhook`,
-    allowed_updates: ['message', 'callback_query', 'pre_checkout_query'],
+    allowed_updates: ['message', 'edited_message', 'callback_query', 'pre_checkout_query', 'business_message'],
     drop_pending_updates: true,
+  });
+}
+
+export async function registerBotCommands() {
+  return api('setMyCommands', {
+    commands: [
+      { command: 'start', description: 'Начать / Start' },
+      { command: 'circles', description: 'Мои круги / My circles' },
+      { command: 'remind', description: 'Ближайшие события / Events' },
+      { command: 'premium', description: 'Premium ⭐' },
+      { command: 'donate', description: 'Поддержать / Donate' },
+      { command: 'lang', description: 'Язык / Language' },
+      { command: 'help', description: 'Помощь / Help' },
+    ],
   });
 }
 
@@ -461,53 +514,89 @@ export async function sendEventReminder(userId, event, daysBefore) {
 }
 
 export async function sendPremiumInvoice(chatId, userId, languageCode) {
-  const locale = userId
-    ? await getUserLocale(userId, languageCode)
-    : normalizeLocale(languageCode?.startsWith('en') ? 'en' : 'ru');
+  let locale = languageCode?.startsWith('en') ? 'en' : 'ru';
+  if (userId) {
+    try {
+      locale = await getUserLocale(userId, languageCode);
+    } catch { /* use telegram language */ }
+  }
+  return deliverPremiumPayment(chatId, locale);
+}
+
+async function deliverPremiumPayment(chatId, locale) {
   const { stars, body } = buildPremiumInvoiceBody(locale);
+  const errors = [];
 
   try {
     return await api('sendInvoice', { chat_id: chatId, ...body });
   } catch (err) {
-    console.warn('[premium] sendInvoice failed, trying createInvoiceLink:', err.message);
+    errors.push(err.message);
+    console.warn('[premium] sendInvoice failed:', err.message, err.telegram || '');
+  }
+
+  try {
     const link = await api('createInvoiceLink', body);
     const payUrl = link.result;
-    if (!payUrl) throw err;
+    if (!payUrl) throw new Error('Empty invoice link');
 
-    await sendMessage(chatId, t(locale, 'premium.payPrompt'), {
-      reply_markup: {
-        inline_keyboard: [[{
-          text: t(locale, 'premium.payBtn', { stars }),
-          url: payUrl,
-        }]],
-      },
-    });
+    await sendMessagePlain(chatId,
+      `${t(locale, 'premium.payPrompt')}\n\n${payUrl}`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{
+            text: t(locale, 'premium.payBtn', { stars }),
+            url: payUrl,
+          }]],
+        },
+      }
+    );
     return link;
+  } catch (err) {
+    errors.push(err.message);
+    console.error('[premium] createInvoiceLink failed:', err.message, err.telegram || '');
+    const detail = errors.join(' | ') || err.message;
+    const errObj = new Error(detail);
+    errObj.telegram = err.telegram;
+    throw errObj;
   }
 }
 
 export async function handlePremium(msg) {
-  try {
-    const locale = await resolveLocale(msg.from);
-    const user = await getUser(msg.from.id);
+  const locale = localeFromTelegram(msg.from);
+  const chatId = msg.chat.id;
 
-    if (isPremiumActive(user)) {
-      await sendMessage(msg.chat.id, t(locale, 'premium.alreadyActive'));
+  upsertUser(msg.from.id, msg.from.username, msg.from.first_name, msg.from.language_code).catch(() => {});
+
+  try {
+    let dbUser = null;
+    try {
+      dbUser = await getUser(msg.from.id);
+    } catch (err) {
+      console.error('[premium] getUser failed:', err.message);
+    }
+
+    const activeLocale = localeFromTelegram(msg.from, dbUser);
+    if (dbUser && isPremiumActive(dbUser)) {
+      const until = dbUser.premium_until
+        ? t(activeLocale, 'premium.alreadyActiveUntil', {
+            date: new Date(dbUser.premium_until).toLocaleDateString(dateLocale(activeLocale)),
+          })
+        : t(activeLocale, 'premium.alreadyActive');
+      await sendMessagePlain(chatId, until);
       return;
     }
 
-    await sendPremiumInvoice(msg.chat.id, msg.from.id, msg.from.language_code);
+    await sendMessagePlain(chatId, t(activeLocale, 'premium.processing'));
+    await deliverPremiumPayment(chatId, activeLocale);
   } catch (err) {
     console.error('[premium]', err.message, err.telegram || '');
-    let locale = 'ru';
+    let activeLocale = locale;
     try {
-      locale = await getUserLocale(msg.from.id, msg.from.language_code);
+      activeLocale = await getUserLocale(msg.from.id, msg.from.language_code);
     } catch { /* ignore */ }
-    try {
-      await sendMessage(msg.chat.id, t(locale, 'premium.failed'));
-    } catch (sendErr) {
-      console.error('[premium] failed to notify user:', sendErr.message);
-    }
+    await sendMessagePlain(chatId, t(activeLocale, 'premium.failed', {
+      detail: err.message || 'Unknown error',
+    }));
   }
 }
 
@@ -526,25 +615,33 @@ export async function handleUpdate(update) {
     await handleSuccessfulPayment(update.message);
     return;
   }
+  if (update.business_message?.successful_payment) {
+    await handleSuccessfulPayment(update.business_message);
+    return;
+  }
 
-  const msg = update.message;
-  if (!msg?.text) return;
+  const msg = extractIncomingMessage(update);
+  if (!msg) return;
 
-  const text = msg.text.trim();
+  const text = normalizeMessageText(msg.text || msg.caption || '');
+  const cmd = getCommandFromMessage(msg);
+  if (cmd) console.log('[bot] command:', cmd, 'from', msg.from?.id);
 
-  if (isCommand(text, '/start')) {
+  if (matchesCommand(msg, '/start')) {
     await handleStart(msg);
-  } else if (isCommand(text, '/напомнить', '/remind')) {
+  } else if (matchesCommand(msg, '/напомнить', '/remind')) {
     await handleRemind(msg);
-  } else if (isCommand(text, '/круги', '/circles')) {
+  } else if (matchesCommand(msg, '/круги', '/circles')) {
     await handleCircles(msg);
-  } else if (isCommand(text, '/помощь', '/help')) {
+  } else if (matchesCommand(msg, '/помощь', '/help')) {
     await handleHelp(msg);
-  } else if (isCommand(text, '/lang', '/language', '/язык')) {
+  } else if (matchesCommand(msg, '/lang', '/language', '/язык')) {
     await handleLang(msg);
-  } else if (isCommand(text, '/premium', '/премиум')) {
+  } else if (matchesCommand(msg, '/premium', '/премиум')) {
     await handlePremium(msg);
-  } else if (isCommand(text, '/donate', '/donat')) {
+  } else if (matchesCommand(msg, '/donate', '/donat')) {
     await handleDonate(msg);
+  } else if (!text) {
+    return;
   }
 }
