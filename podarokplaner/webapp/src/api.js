@@ -39,6 +39,7 @@ async function request(path, options = {}) {
 export const api = {
   getMe: () => request('/me'),
   setLocale: (locale) => request('/me/locale', { method: 'POST', body: { locale } }),
+  sendReport: (message) => request('/report', { method: 'POST', body: { message } }),
   getCircles: () => request('/circles'),
   createCircle: (name, members) => request('/circles', { method: 'POST', body: { name, members } }),
   getCircle: (id) => request(`/circles/${id}`),

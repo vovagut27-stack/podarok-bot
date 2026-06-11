@@ -197,6 +197,22 @@ export async function handleApiRequest(req, res, path) {
     return json(res, 200, { ok: true });
   }
 
+  // POST /api/report
+  if (method === 'POST' && path === '/api/report') {
+    const { message } = req.body || {};
+    if (!message?.trim()) return json(res, 400, { error: 'Message required' });
+    try {
+      await upsertUser(user.id, user.username, user.first_name, user.language_code);
+      const { sendReportToCreator, getCreatorId } = await import('./report.js');
+      if (!getCreatorId()) return json(res, 503, { error: 'Reports not configured' });
+      await sendReportToCreator(user, message.trim(), 'Mini App');
+      return json(res, 200, { ok: true });
+    } catch (err) {
+      console.error('[api/report]', err.message);
+      return json(res, 500, { error: err.message || 'Failed to send report' });
+    }
+  }
+
   // POST /api/premium/invoice
   if (method === 'POST' && path === '/api/premium/invoice') {
     try {

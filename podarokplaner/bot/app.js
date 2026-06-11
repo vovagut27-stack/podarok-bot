@@ -233,6 +233,30 @@ export async function createApp() {
     res.json({ ok: true });
   });
 
+  app.post('/api/report', authMiddleware, async (req, res) => {
+    const { message } = req.body || {};
+    if (!message?.trim()) {
+      return res.status(400).json({ error: 'Message required' });
+    }
+    try {
+      await upsertUser(
+        req.telegramUser.id,
+        req.telegramUser.username,
+        req.telegramUser.first_name,
+        req.telegramUser.language_code
+      );
+      const { sendReportToCreator, getCreatorId } = await import('./report.js');
+      if (!getCreatorId()) {
+        return res.status(503).json({ error: 'Reports not configured' });
+      }
+      await sendReportToCreator(req.telegramUser, message.trim(), 'Mini App');
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[api/report]', err.message);
+      res.status(500).json({ error: err.message || 'Failed to send report' });
+    }
+  });
+
   app.post('/api/premium/invoice', authMiddleware, async (req, res) => {
     try {
       await upsertUser(

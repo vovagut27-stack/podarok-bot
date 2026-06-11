@@ -52,6 +52,7 @@ const ru = {
   'help.cmdPremiumRu': '/премиум — то же самое',
   'help.cmdLang': '/lang — язык / language',
   'help.cmdHelp': '/help — эта справка',
+  'help.cmdReport': '/report — сообщить о проблеме',
   'help.howTitle': '<b>Как это работает:</b>',
   'help.how1': '• Создайте круг и добавьте людей',
   'help.how2': '• Пригласите друзей по ссылке из карточки круга',
@@ -85,6 +86,13 @@ const ru = {
   'lang.changedEn': 'Language changed',
   'lang.confirmRu': '✅ Язык: <b>Русский</b>',
   'lang.confirmEn': '✅ Language: <b>English</b>',
+
+  'report.prompt': '📩 <b>Сообщить о проблеме</b>\n\nНапишите текст одной командой:\n<code>/report описание проблемы</code>\n\nИли нажмите кнопку — откроется форма в Mini App.',
+  'report.sent': '✅ Репорт отправлен разработчику. Спасибо!',
+  'report.empty': 'Добавьте текст сообщения.\n\nПример: <code>/report не открывается календарь</code>',
+  'report.notConfigured': 'Отправка репортов временно недоступна.',
+  'report.btnMiniApp': '📱 Форма репорта',
+  'report.btnSend': '📩 Написать репорт',
 };
 
 const en = {
@@ -140,6 +148,7 @@ const en = {
   'help.cmdPremium': '/premium — Premium via Stars',
   'help.cmdLang': '/lang — language / язык',
   'help.cmdHelp': '/help — this help',
+  'help.cmdReport': '/report — report a problem',
   'help.howTitle': '<b>How it works:</b>',
   'help.how1': '• Create a circle and add people',
   'help.how2': '• Invite friends via the link from the circle card',
@@ -173,6 +182,13 @@ const en = {
   'lang.changedEn': 'Language changed',
   'lang.confirmRu': '✅ Язык: <b>Русский</b>',
   'lang.confirmEn': '✅ Language: <b>English</b>',
+
+  'report.prompt': '📩 <b>Report a problem</b>\n\nSend your message in one command:\n<code>/report your text here</code>\n\nOr tap the button to open the form in Mini App.',
+  'report.sent': '✅ Report sent to the developer. Thank you!',
+  'report.empty': 'Please add a message.\n\nExample: <code>/report the calendar does not load</code>',
+  'report.notConfigured': 'Reports are temporarily unavailable.',
+  'report.btnMiniApp': '📱 Open report form',
+  'report.btnSend': '📩 Send report',
 };
 
 const dict = { ru, en };

@@ -12,6 +12,12 @@ import {
 } from './database.js';
 import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
 import { t, normalizeLocale, dateLocale, pluralDaysLabel } from './i18n.js';
+import {
+  getCreatorId,
+  textAfterCommand,
+  sendReportToCreator,
+  sendPlainMessage,
+} from './report.js';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || process.env.WEBHOOK_URL || 'http://localhost:3000';
@@ -187,6 +193,7 @@ export async function registerBotCommands() {
       { command: 'premium', description: 'Premium ⭐' },
       { command: 'donate', description: 'Поддержать / Donate' },
       { command: 'lang', description: 'Язык / Language' },
+      { command: 'report', description: 'Report / Репорт' },
       { command: 'help', description: 'Помощь / Help' },
     ],
   });
@@ -201,6 +208,29 @@ export async function setChatMenuButton(chatId, webAppUrl, locale = 'ru') {
       web_app: { url: webAppUrl },
     },
   });
+}
+
+function reportReplyKeyboard(locale) {
+  if (!getCreatorId()) return undefined;
+  return {
+    inline_keyboard: [[
+      {
+        text: t(locale, 'report.btnMiniApp'),
+        web_app: { url: webAppUrl('report') },
+      },
+    ]],
+  };
+}
+
+function helpReplyMarkup(locale) {
+  const keyboard = miniAppKeyboard('', locale);
+  if (getCreatorId()) {
+    keyboard.inline_keyboard.unshift([{
+      text: t(locale, 'report.btnSend'),
+      web_app: { url: webAppUrl('report') },
+    }]);
+  }
+  return appendDonateRow(keyboard, locale);
 }
 
 function miniAppKeyboard(startParam = '', locale = 'ru') {
@@ -265,6 +295,7 @@ function buildHelpText(locale) {
     t(locale, 'help.cmdPremium'),
     ...(locale === 'ru' ? [t(locale, 'help.cmdPremiumRu')] : []),
     t(locale, 'help.cmdLang'),
+    t(locale, 'help.cmdReport'),
     t(locale, 'help.cmdHelp'),
     '',
     t(locale, 'help.howTitle'),
@@ -413,8 +444,38 @@ export async function handleHelp(msg) {
   const locale = await resolveLocale(msg.from);
   await sendMessage(msg.chat.id,
     buildHelpText(locale),
-    { reply_markup: appendDonateRow(miniAppKeyboard('', locale), locale) }
+    { reply_markup: helpReplyMarkup(locale) }
   );
+}
+
+export async function handleReport(msg) {
+  const locale = localeFromTelegram(msg.from);
+
+  upsertUser(msg.from.id, msg.from.username, msg.from.first_name, msg.from.language_code).catch(() => {});
+
+  if (!getCreatorId()) {
+    await sendMessagePlain(msg.chat.id, t(locale, 'report.notConfigured'));
+    return;
+  }
+
+  const body = textAfterCommand(msg);
+  if (!body) {
+    await sendMessage(msg.chat.id, t(locale, 'report.prompt'), {
+      reply_markup: reportReplyKeyboard(locale),
+    });
+    return;
+  }
+
+  try {
+    await sendReportToCreator(msg.from, body, 'bot /report');
+    await sendPlainMessage(msg.chat.id, t(locale, 'report.sent'));
+  } catch (err) {
+    console.error('[report]', err.message);
+    const key = err.code === 'EMPTY' ? 'report.empty' : 'report.notConfigured';
+    await sendMessage(msg.chat.id, t(locale, key), {
+      reply_markup: reportReplyKeyboard(locale),
+    });
+  }
 }
 
 export async function handleLang(msg) {
@@ -648,6 +709,8 @@ export async function handleUpdate(update) {
     await handlePremium(msg);
   } else if (matchesCommand(msg, '/donate', '/donat')) {
     await handleDonate(msg);
+  } else if (matchesCommand(msg, '/report', '/репорт')) {
+    await handleReport(msg);
   } else if (!text) {
     return;
   }

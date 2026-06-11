@@ -26,6 +26,7 @@ export default function App() {
   const [selectedCircle, setSelectedCircle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [focusReport, setFocusReport] = useState(false);
 
   useEffect(() => {
     tg?.ready();
@@ -67,6 +68,9 @@ export default function App() {
         }
       } else if (startParam === 'events') {
         setView(VIEWS.events);
+      } else if (startParam === 'report') {
+        setFocusReport(true);
+        setView(VIEWS.settings);
       }
     } catch (err) {
       const msg = err.status === 401
@@ -81,6 +85,7 @@ export default function App() {
   function navigate(to, circle = null) {
     haptic('light');
     setView(to);
+    if (to !== VIEWS.settings) setFocusReport(false);
     if (circle) setSelectedCircle(circle);
     setError(null);
   }
@@ -179,7 +184,7 @@ export default function App() {
         )}
 
         {view === VIEWS.settings && (
-          <Settings user={user} />
+          <Settings user={user} focusReport={focusReport} />
         )}
       </div>
 

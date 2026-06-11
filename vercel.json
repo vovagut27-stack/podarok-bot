@@ -11,7 +11,9 @@
     { "source": "/api/events/:path*", "destination": "/api/handler?path=events/:path*" },
     { "source": "/api/wishlists/:path*", "destination": "/api/handler?path=wishlists/:path*" },
     { "source": "/api/wishlist-items/:path*", "destination": "/api/handler?path=wishlist-items/:path*" },
-    { "source": "/api/premium/:path*", "destination": "/api/handler?path=premium/:path*" }
+    { "source": "/api/premium/:path*", "destination": "/api/handler?path=premium/:path*" },
+    { "source": "/api/report", "destination": "/api/handler?path=report" },
+    { "source": "/api/me/locale", "destination": "/api/handler?path=me/locale" }
   ],
   "crons": [
     {
