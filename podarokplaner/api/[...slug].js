@@ -18,4 +18,4 @@ export default async function handler(req, res) {
   return fn(req, res);
 }
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };

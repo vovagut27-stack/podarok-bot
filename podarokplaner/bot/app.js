@@ -195,12 +195,17 @@ export async function createApp() {
   });
 
   const webhookHandler = async (req, res) => {
+    if (!process.env.BOT_TOKEN) {
+      console.error('[webhook] BOT_TOKEN is not set');
+      return res.status(500).json({ error: 'BOT_TOKEN not configured' });
+    }
     try {
       await handleUpdate(req.body);
+      res.sendStatus(200);
     } catch (err) {
       console.error('[webhook] Error:', err);
+      res.status(500).json({ error: err.message });
     }
-    res.sendStatus(200);
   };
 
   app.post('/webhook', webhookHandler);
