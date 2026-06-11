@@ -4,14 +4,7 @@
   "installCommand": "npm install",
   "framework": null,
   "rewrites": [
-    { "source": "/webhook", "destination": "/api/webhook" },
-    { "source": "/api/me", "destination": "/api/server" },
-    { "source": "/api/circles", "destination": "/api/server" },
-    { "source": "/api/circles/:path*", "destination": "/api/server" },
-    { "source": "/api/events/:path*", "destination": "/api/server" },
-    { "source": "/api/wishlists/:path*", "destination": "/api/server" },
-    { "source": "/api/wishlist-items/:path*", "destination": "/api/server" },
-    { "source": "/api/premium/:path*", "destination": "/api/server" }
+    { "source": "/webhook", "destination": "/api/webhook" }
   ],
   "crons": [
     {

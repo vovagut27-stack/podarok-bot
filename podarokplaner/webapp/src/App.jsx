@@ -61,7 +61,10 @@ export default function App() {
         setView(VIEWS.events);
       }
     } catch (err) {
-      setError(err.message);
+      const msg = err.status === 401
+        ? 'Откройте приложение через Telegram-бота'
+        : err.message;
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -90,7 +93,12 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="loading">Загрузка...</div>;
+    return (
+      <div className="loading">
+        <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
+        Загрузка...
+      </div>
+    );
   }
 
   const headerTitles = {
