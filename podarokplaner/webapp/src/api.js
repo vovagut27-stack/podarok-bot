@@ -71,7 +71,16 @@ export function getStartParam() {
 }
 
 export function haptic(type = 'light') {
-  tg?.HapticFeedback?.impactOccurred(type);
+  const h = tg?.HapticFeedback;
+  if (!h) return;
+
+  if (type === 'success' || type === 'error' || type === 'warning') {
+    h.notificationOccurred(type);
+    return;
+  }
+
+  const impactStyles = ['light', 'medium', 'heavy', 'rigid', 'soft'];
+  h.impactOccurred(impactStyles.includes(type) ? type : 'light');
 }
 
 export { tg };
