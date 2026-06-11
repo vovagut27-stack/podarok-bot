@@ -1,0 +1,23 @@
+{
+  "name": "podarokplaner",
+  "version": "1.0.0",
+  "description": "Подарок.бот — семейный wishlist-бот для Telegram",
+  "type": "module",
+  "scripts": {
+    "start": "node bot/index.js",
+    "dev": "node --watch bot/index.js",
+    "build:webapp": "cd webapp && npm run build",
+    "vercel-build": "npm run build:webapp",
+    "postinstall": "cd webapp && npm install",
+    "setup": "npm install && npm run build:webapp",
+    "db:init": "node scripts/init-db.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "serverless-http": "^3.2.0"
+  }
+}
