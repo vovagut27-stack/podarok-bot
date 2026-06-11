@@ -1,4 +1,3 @@
-import { createClient } from '@libsql/client';
 import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -74,28 +73,29 @@ CREATE INDEX IF NOT EXISTS idx_circle_members_user ON circle_members(user_id);
 let client;
 let dbReady;
 
-function assertEnv() {
-  if (!process.env.VERCEL) return;
-  const missing = [];
-  if (!process.env.TURSO_DATABASE_URL) missing.push('TURSO_DATABASE_URL');
-  if (!process.env.TURSO_AUTH_TOKEN) missing.push('TURSO_AUTH_TOKEN');
-  if (!process.env.BOT_TOKEN) missing.push('BOT_TOKEN');
-  if (missing.length) {
-    throw new Error(`Missing Vercel env vars: ${missing.join(', ')}`);
+function tursoHttpUrl(raw) {
+  return raw.replace('libsql://', 'https://');
+}
+
+async function createDbClient() {
+  assertEnv();
+
+  if (process.env.TURSO_DATABASE_URL) {
+    const { createClient } = await import('@libsql/client/web');
+    return createClient({
+      url: tursoHttpUrl(process.env.TURSO_DATABASE_URL),
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
   }
+
+  const { createClient } = await import('@libsql/client');
+  mkdirSync(join(__dirname, '..', 'data'), { recursive: true });
+  return createClient({ url: `file:${localDbPath}` });
 }
 
 function getClient() {
   if (!client) {
-    assertEnv();
-    const url = process.env.TURSO_DATABASE_URL || `file:${localDbPath}`;
-    if (!process.env.TURSO_DATABASE_URL) {
-      mkdirSync(join(__dirname, '..', 'data'), { recursive: true });
-    }
-    client = createClient({
-      url,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    });
+    throw new Error('Database not initialized. Call initDb() first.');
   }
   return client;
 }
@@ -107,11 +107,23 @@ async function runSchema() {
   }
 }
 
+function assertEnv() {
+  if (!process.env.VERCEL) return;
+  const missing = [];
+  if (!process.env.TURSO_DATABASE_URL) missing.push('TURSO_DATABASE_URL');
+  if (!process.env.TURSO_AUTH_TOKEN) missing.push('TURSO_AUTH_TOKEN');
+  if (!process.env.BOT_TOKEN) missing.push('BOT_TOKEN');
+  if (missing.length) {
+    throw new Error(`Missing Vercel env vars: ${missing.join(', ')}`);
+  }
+}
+
 export async function initDb() {
   if (!dbReady) {
     dbReady = (async () => {
       assertEnv();
-      const check = await getClient().execute(
+      client = await createDbClient();
+      const check = await client.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
       );
       if (check.rows.length === 0) {
