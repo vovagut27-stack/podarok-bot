@@ -243,6 +243,9 @@ export async function createApp() {
     if (!wishlist || Number(wishlist.user_id) !== req.telegramUser.id) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
+    if (!(await isCircleMember(wishlist.circle_id, req.telegramUser.id))) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
     const { title, description, priceRange, url, priority } = req.body;
     if (!title?.trim()) {
       return res.status(400).json({ error: 'Название обязательно' });

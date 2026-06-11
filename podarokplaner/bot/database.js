@@ -161,7 +161,18 @@ async function exec(sql, args = []) {
 }
 
 function num(value) {
-  return value == null ? null : Number(value);
+  if (value == null) return null;
+  if (typeof value === 'bigint') return Number(value);
+  return Number(value);
+}
+
+function rowNums(row, keys) {
+  if (!row) return row;
+  const out = { ...row };
+  for (const key of keys) {
+    if (out[key] != null) out[key] = num(out[key]);
+  }
+  return out;
 }
 
 export async function upsertUser(telegramId, username, firstName, languageCode) {
@@ -199,7 +210,10 @@ export async function getUserLocale(telegramId, languageCode) {
 }
 
 export async function getUser(telegramId) {
-  return one('SELECT * FROM users WHERE telegram_id = ?', [telegramId]);
+  return rowNums(
+    await one('SELECT * FROM users WHERE telegram_id = ?', [telegramId]),
+    ['telegram_id']
+  );
 }
 
 export function isPremiumActive(user) {
@@ -237,7 +251,10 @@ export async function createCircle(name, creatorId) {
 }
 
 export async function getCircle(circleId) {
-  return one('SELECT * FROM family_circles WHERE id = ?', [circleId]);
+  return rowNums(
+    await one('SELECT * FROM family_circles WHERE id = ?', [circleId]),
+    ['id', 'creator_id']
+  );
 }
 
 export async function getUserCircles(userId) {
@@ -292,16 +309,16 @@ export async function getCircleContacts(circleId) {
 }
 
 export async function getCircleMembers(circleId) {
-  const members = await all(`
+  const members = (await all(`
     SELECT cm.*, u.username, u.first_name
     FROM circle_members cm
     LEFT JOIN users u ON u.telegram_id = cm.user_id
     WHERE cm.circle_id = ?
-  `, [circleId]);
+  `, [circleId])).map(m => rowNums(m, ['id', 'circle_id', 'user_id']));
 
   const contacts = (await getCircleContacts(circleId)).map(c => ({
-    id: `contact_${c.id}`,
-    circle_id: c.circle_id,
+    id: `contact_${num(c.id)}`,
+    circle_id: num(c.circle_id),
     user_id: null,
     role: 'contact',
     display_name: c.name,

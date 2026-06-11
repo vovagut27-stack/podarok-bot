@@ -330,8 +330,7 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
     if (!confirm(t('circle.removeMemberConfirm', { name }))) return;
     haptic('medium');
     try {
-      const memberRef = member.id;
-      await api.removeMember(data.circle.id, memberRef);
+      await api.removeMember(data.circle.id, String(member.id));
       haptic('success');
       onRefresh();
     } catch (err) {
@@ -390,11 +389,11 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
                   {telegramMembers.map(m => (
                     <MemberRow
                       key={m.user_id}
-                      member={m}
                       label={memberLabel(m) + (m.role === 'admin' ? ' 👑' : '')}
                       variant="bot"
                       canRemove={canRemoveMember(m)}
                       onRemove={() => handleRemoveMember(m)}
+                      removeLabel={t('circle.removeMember')}
                     />
                   ))}
                 </div>
@@ -407,11 +406,11 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
                   {nameOnlyMembers.map(m => (
                     <MemberRow
                       key={m.id}
-                      member={m}
                       label={memberLabel(m)}
                       variant="contact"
                       canRemove={canRemoveMember(m)}
                       onRemove={() => handleRemoveMember(m)}
+                      removeLabel={t('circle.removeMember')}
                     />
                   ))}
                 </div>
@@ -530,7 +529,7 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
   );
 }
 
-function MemberRow({ label, variant, canRemove, onRemove }) {
+function MemberRow({ label, variant, canRemove, onRemove, removeLabel }) {
   return (
     <div className="member-row">
       <span className={`member-tag member-tag--${variant}`}>{label}</span>
@@ -539,7 +538,7 @@ function MemberRow({ label, variant, canRemove, onRemove }) {
           type="button"
           className="member-remove-btn btn btn-ghost btn-sm btn-delete"
           onClick={onRemove}
-          aria-label="Remove"
+          aria-label={removeLabel}
         >
           ✕
         </button>

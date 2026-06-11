@@ -24,7 +24,11 @@ export default function EventCard({
     if (!onDelete) return;
     if (!confirm(t('events.deleteConfirm'))) return;
     haptic('medium');
-    await onDelete(event.id);
+    try {
+      await onDelete(event.id);
+    } catch (err) {
+      console.error('[EventCard] delete failed:', err);
+    }
   }
 
   return (

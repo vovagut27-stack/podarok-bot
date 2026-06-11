@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import {
+  initDb,
   getEventsForNotification,
   getCircleMemberIds,
   wasNotificationSent,
@@ -19,6 +20,8 @@ export function startNotificationScheduler() {
 }
 
 export async function processReminders() {
+  await initDb();
+
   for (const daysBefore of REMINDER_DAYS) {
     const events = await getEventsForNotification(daysBefore);
 

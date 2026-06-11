@@ -13,7 +13,6 @@ import {
   addCircleContact,
   joinCircle,
   isCircleMember,
-  canManageCircleMembers,
   removeMemberFromCircle,
   createEvent,
   getCircleEvents,
@@ -225,6 +224,9 @@ export async function handleApiRequest(req, res, path) {
     const wishlistId = parseInt(m[1], 10);
     const wishlist = await getWishlistById(wishlistId);
     if (!wishlist || Number(wishlist.user_id) !== user.id) {
+      return json(res, 403, { error: 'Нет доступа' });
+    }
+    if (!(await isCircleMember(wishlist.circle_id, user.id))) {
       return json(res, 403, { error: 'Нет доступа' });
     }
     const { title, description, priceRange, url, priority } = req.body || {};

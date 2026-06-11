@@ -3,7 +3,13 @@ import { processReminders } from '../podarokplaner/bot/notifications.js';
 
 export default async function handler(req, res) {
   const auth = req.headers.authorization;
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET?.trim();
+
+  if (process.env.VERCEL) {
+    if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  } else if (cronSecret && auth !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
