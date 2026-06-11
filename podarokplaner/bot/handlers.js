@@ -8,6 +8,7 @@ import {
   getUser,
   setUserLocale,
   getUserLocale,
+  isPremiumActive,
 } from './database.js';
 import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
 import { t, normalizeLocale, dateLocale, pluralDaysLabel } from './i18n.js';
@@ -76,6 +77,30 @@ async function resolveLocale(from) {
   return getUserLocale(from.id, from.language_code);
 }
 
+function getCommand(text) {
+  if (!text?.startsWith('/')) return '';
+  return text.trim().split(/\s/)[0].split('@')[0].toLowerCase();
+}
+
+function isCommand(text, ...names) {
+  const cmd = getCommand(text);
+  return names.some(n => cmd === n.toLowerCase());
+}
+
+function buildPremiumInvoiceBody(locale) {
+  const stars = Math.max(1, parseInt(process.env.PREMIUM_STARS || '500', 10) || 500);
+  return {
+    stars,
+    body: {
+      title: t(locale, 'premium.invoiceTitle').slice(0, 32),
+      description: t(locale, 'premium.invoiceDesc').slice(0, 255),
+      payload: 'premium_monthly',
+      currency: 'XTR',
+      prices: [{ label: t(locale, 'premium.invoiceLabel').slice(0, 128), amount: stars }],
+    },
+  };
+}
+
 function formatMemberLine(m, locale) {
   const name = m.display_name || m.first_name || (m.username ? `@${m.username}` : t(locale, 'member.default'));
   const crown = m.role === 'admin' ? ' 👑' : '';
@@ -89,7 +114,13 @@ async function api(method, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return res.json();
+  const data = await res.json();
+  if (!data.ok) {
+    const err = new Error(data.description || 'Telegram API error');
+    err.telegram = data;
+    throw err;
+  }
+  return data;
 }
 
 export async function sendMessage(chatId, text, options = {}) {
@@ -179,6 +210,7 @@ function buildHelpText(locale) {
     t(locale, 'help.cmdCircles'),
     t(locale, 'help.cmdDonate'),
     t(locale, 'help.cmdPremium'),
+    ...(locale === 'ru' ? [t(locale, 'help.cmdPremiumRu')] : []),
     t(locale, 'help.cmdLang'),
     t(locale, 'help.cmdHelp'),
     '',
@@ -432,16 +464,51 @@ export async function sendPremiumInvoice(chatId, userId, languageCode) {
   const locale = userId
     ? await getUserLocale(userId, languageCode)
     : normalizeLocale(languageCode?.startsWith('en') ? 'en' : 'ru');
-  const stars = parseInt(process.env.PREMIUM_STARS || '500', 10);
-  return api('sendInvoice', {
-    chat_id: chatId,
-    title: t(locale, 'premium.invoiceTitle'),
-    description: t(locale, 'premium.invoiceDesc'),
-    payload: 'premium_monthly',
-    provider_token: '',
-    currency: 'XTR',
-    prices: [{ label: t(locale, 'premium.invoiceLabel'), amount: stars }],
-  });
+  const { stars, body } = buildPremiumInvoiceBody(locale);
+
+  try {
+    return await api('sendInvoice', { chat_id: chatId, ...body });
+  } catch (err) {
+    console.warn('[premium] sendInvoice failed, trying createInvoiceLink:', err.message);
+    const link = await api('createInvoiceLink', body);
+    const payUrl = link.result;
+    if (!payUrl) throw err;
+
+    await sendMessage(chatId, t(locale, 'premium.payPrompt'), {
+      reply_markup: {
+        inline_keyboard: [[{
+          text: t(locale, 'premium.payBtn', { stars }),
+          url: payUrl,
+        }]],
+      },
+    });
+    return link;
+  }
+}
+
+export async function handlePremium(msg) {
+  try {
+    const locale = await resolveLocale(msg.from);
+    const user = await getUser(msg.from.id);
+
+    if (isPremiumActive(user)) {
+      await sendMessage(msg.chat.id, t(locale, 'premium.alreadyActive'));
+      return;
+    }
+
+    await sendPremiumInvoice(msg.chat.id, msg.from.id, msg.from.language_code);
+  } catch (err) {
+    console.error('[premium]', err.message, err.telegram || '');
+    let locale = 'ru';
+    try {
+      locale = await getUserLocale(msg.from.id, msg.from.language_code);
+    } catch { /* ignore */ }
+    try {
+      await sendMessage(msg.chat.id, t(locale, 'premium.failed'));
+    } catch (sendErr) {
+      console.error('[premium] failed to notify user:', sendErr.message);
+    }
+  }
 }
 
 export async function handleUpdate(update) {
@@ -465,19 +532,19 @@ export async function handleUpdate(update) {
 
   const text = msg.text.trim();
 
-  if (text.startsWith('/start')) {
+  if (isCommand(text, '/start')) {
     await handleStart(msg);
-  } else if (text.startsWith('/напомнить') || text.startsWith('/remind')) {
+  } else if (isCommand(text, '/напомнить', '/remind')) {
     await handleRemind(msg);
-  } else if (text.startsWith('/круги') || text.startsWith('/circles')) {
+  } else if (isCommand(text, '/круги', '/circles')) {
     await handleCircles(msg);
-  } else if (text.startsWith('/помощь') || text.startsWith('/help')) {
+  } else if (isCommand(text, '/помощь', '/help')) {
     await handleHelp(msg);
-  } else if (text.startsWith('/lang') || text.startsWith('/language') || text.startsWith('/язык')) {
+  } else if (isCommand(text, '/lang', '/language', '/язык')) {
     await handleLang(msg);
-  } else if (text.startsWith('/premium')) {
-    await sendPremiumInvoice(msg.chat.id, msg.from.id, msg.from.language_code);
-  } else if (text.startsWith('/donate') || text.startsWith('/donat')) {
+  } else if (isCommand(text, '/premium', '/премиум')) {
+    await handlePremium(msg);
+  } else if (isCommand(text, '/donate', '/donat')) {
     await handleDonate(msg);
   }
 }

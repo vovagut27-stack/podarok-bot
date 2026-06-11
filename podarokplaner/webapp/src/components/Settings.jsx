@@ -19,7 +19,7 @@ export default function Settings({ user }) {
     haptic('medium');
     try {
       await api.requestPremium();
-      tg?.close();
+      alert(t('settings.premiumSent'));
     } catch {
       alert(t('settings.premiumError'));
     }

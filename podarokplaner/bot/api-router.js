@@ -200,10 +200,12 @@ export async function handleApiRequest(req, res, path) {
   // POST /api/premium/invoice
   if (method === 'POST' && path === '/api/premium/invoice') {
     try {
+      await upsertUser(user.id, user.username, user.first_name, user.language_code);
       const result = await sendPremiumInvoice(user.id, user.id, user.language_code);
-      return json(res, 200, result);
+      return json(res, 200, { ok: true, messageId: result.result?.message_id });
     } catch (err) {
-      return json(res, 500, { error: err.message });
+      console.error('[api/premium/invoice]', err.message, err.telegram || '');
+      return json(res, 500, { error: err.message || 'Failed to send invoice' });
     }
   }
 

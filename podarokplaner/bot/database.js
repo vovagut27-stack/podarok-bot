@@ -192,6 +192,14 @@ export async function getUser(telegramId) {
   return one('SELECT * FROM users WHERE telegram_id = ?', [telegramId]);
 }
 
+export function isPremiumActive(user) {
+  if (!user) return false;
+  const active = Number(user.is_premium) === 1 || user.is_premium === true;
+  if (!active) return false;
+  if (!user.premium_until) return true;
+  return new Date(user.premium_until) > new Date();
+}
+
 export async function setPremium(telegramId, until) {
   await exec(`
     UPDATE users SET is_premium = 1, premium_until = ? WHERE telegram_id = ?
@@ -200,7 +208,7 @@ export async function setPremium(telegramId, until) {
 
 export async function canCreateCircle(userId) {
   const user = await getUser(userId);
-  if (user?.is_premium) return true;
+  if (isPremiumActive(user)) return true;
   const count = await one(`
     SELECT COUNT(*) as count FROM family_circles WHERE creator_id = ?
   `, [userId]);

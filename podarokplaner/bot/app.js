@@ -235,14 +235,21 @@ export async function createApp() {
 
   app.post('/api/premium/invoice', authMiddleware, async (req, res) => {
     try {
+      await upsertUser(
+        req.telegramUser.id,
+        req.telegramUser.username,
+        req.telegramUser.first_name,
+        req.telegramUser.language_code
+      );
       const result = await sendPremiumInvoice(
         req.telegramUser.id,
         req.telegramUser.id,
         req.telegramUser.language_code
       );
-      res.json(result);
+      res.json({ ok: true, messageId: result.result?.message_id });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error('[api/premium/invoice]', err.message, err.telegram || '');
+      res.status(500).json({ error: err.message || 'Failed to send invoice' });
     }
   });
 
