@@ -574,31 +574,40 @@ function CircleDetail({ data, currentUserId, onRefresh, onViewWishlist, onAddEve
         </button>
       )}
 
-      <div className="section-title">{t('circle.wishlists')}</div>
-      <div className="card">
+      <div className="section-title section-title--wishlists">{t('circle.wishlists')}</div>
+      <div className="card wishlists-card">
         {memberWishlists.length === 0 ? (
-          <div className="card-subtitle">{t('circle.wishlistsEmpty')}</div>
+          <div className="wishlists-empty">{t('circle.wishlistsEmpty')}</div>
         ) : (
-          memberWishlists.map(member => (
-            <button
-              key={member.userId}
-              type="button"
-              className="wishlist-member-row"
-              onClick={() => onViewWishlist(member)}
-            >
-              <span className="wishlist-member-name">
-                {member.displayName}
-                {Number(member.userId) === Number(currentUserId) && (
-                  <span className="wishlist-member-you"> · {t('wishlist.you')}</span>
-                )}
-              </span>
-              <span className="wishlist-member-meta">
-                {member.itemCount > 0
-                  ? t('wishlist.itemCount', { count: member.itemCount })
-                  : t('wishlist.emptyShort')}
-              </span>
-            </button>
-          ))
+          memberWishlists.map(member => {
+            const isSelf = Number(member.userId) === Number(currentUserId);
+            return (
+              <button
+                key={member.userId}
+                type="button"
+                className={`wishlist-member-row${isSelf ? ' wishlist-member-row--self' : ''}`}
+                onClick={() => onViewWishlist(member)}
+              >
+                <span className="wishlist-member-icon" aria-hidden="true">🎁</span>
+                <span className="wishlist-member-body">
+                  <span className="wishlist-member-name">
+                    {member.displayName}
+                    {isSelf && (
+                      <span className="wishlist-member-you"> · {t('wishlist.you')}</span>
+                    )}
+                  </span>
+                </span>
+                <span
+                  className={`wishlist-member-meta${member.itemCount > 0 ? '' : ' wishlist-member-meta--empty'}`}
+                >
+                  {member.itemCount > 0
+                    ? t('wishlist.itemCount', { count: member.itemCount })
+                    : t('wishlist.emptyShort')}
+                </span>
+                <span className="wishlist-member-chevron" aria-hidden="true">›</span>
+              </button>
+            );
+          })
         )}
       </div>
 
