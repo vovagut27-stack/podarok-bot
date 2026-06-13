@@ -67,6 +67,17 @@ export async function handleApiRequest(req, res, path) {
   const user = authenticate(req, res);
   if (!user) return;
 
+  // GET /api/bootstrap — один запрос вместо трёх при старте Mini App
+  if (method === 'GET' && path === '/api/bootstrap') {
+    await upsertUser(user.id, user.username, user.first_name, user.language_code);
+    const dbUser = await getUser(user.id);
+    const [circles, events] = await Promise.all([
+      getUserCircles(user.id),
+      getUpcomingEvents(user.id, 10),
+    ]);
+    return json(res, 200, { user: dbUser, circles, events });
+  }
+
   // GET /api/me
   if (method === 'GET' && path === '/api/me') {
     await upsertUser(user.id, user.username, user.first_name, user.language_code);

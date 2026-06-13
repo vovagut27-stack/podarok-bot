@@ -5,6 +5,7 @@
   "framework": null,
   "rewrites": [
     { "source": "/webhook", "destination": "/api/webhook" },
+    { "source": "/api/bootstrap", "destination": "/api/handler?path=bootstrap" },
     { "source": "/api/me", "destination": "/api/handler?path=me" },
     { "source": "/api/circles", "destination": "/api/handler?path=circles" },
     { "source": "/api/circles/:path*", "destination": "/api/handler?path=circles/:path*" },

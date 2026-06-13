@@ -37,6 +37,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  bootstrap: () => request('/bootstrap'),
   getMe: () => request('/me'),
   setLocale: (locale) => request('/me/locale', { method: 'POST', body: { locale } }),
   sendReport: (message) => request('/report', { method: 'POST', body: { message } }),

@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { api, tg, getStartParam, haptic, buildCircleInviteLink, shareInviteLink } from './api';
 import { useLocale } from './i18n/LocaleContext';
 import { translateApiError } from './i18n/translations';
 import { isPremiumUser } from './userUtils';
 import { circleInitials } from './ui';
 import FamilyCircles from './components/FamilyCircles';
-import CreateCircle from './components/CreateCircle';
-import EventCalendar from './components/EventCalendar';
-import Wishlist from './components/Wishlist';
-import Settings from './components/Settings';
 import EventCard from './components/EventCard';
+
+const CreateCircle = lazy(() => import('./components/CreateCircle'));
+const EventCalendar = lazy(() => import('./components/EventCalendar'));
+const Wishlist = lazy(() => import('./components/Wishlist'));
+const Settings = lazy(() => import('./components/Settings'));
 
 const VIEWS = {
   home: 'home',
@@ -28,6 +29,7 @@ export default function App() {
   const [events, setEvents] = useState([]);
   const [selectedCircle, setSelectedCircle] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [focusReport, setFocusReport] = useState(false);
 
@@ -43,21 +45,21 @@ export default function App() {
     loadData();
   }, []);
 
-  async function loadData() {
+  async function loadData({ silent = false } = {}) {
     try {
-      setLoading(true);
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
-      const [me, circlesData, eventsData] = await Promise.all([
-        api.getMe(),
-        api.getCircles(),
-        api.getUpcomingEvents(),
-      ]);
-      setUser(me.user);
-      setCircles(circlesData);
-      setEvents(eventsData);
+      const data = await api.bootstrap();
+      setUser(data.user);
+      setCircles(data.circles);
+      setEvents(data.events);
 
-      if (me.user?.locale === 'en' || me.user?.locale === 'ru') {
-        setLocale(me.user.locale);
+      if (data.user?.locale === 'en' || data.user?.locale === 'ru') {
+        setLocale(data.user.locale);
       }
 
       const startParam = getStartParam();
@@ -65,8 +67,8 @@ export default function App() {
         const circleId = parseInt(startParam.replace('circle_', ''), 10);
         if (circleId) {
           await api.joinCircle(circleId);
-          const data = await api.getCircle(circleId);
-          setSelectedCircle(data);
+          const circleData = await api.getCircle(circleId);
+          setSelectedCircle(circleData);
           setView(VIEWS.circle);
         }
       } else if (startParam === 'events') {
@@ -81,7 +83,11 @@ export default function App() {
         : translateApiError(err.message, locale);
       setError(msg);
     } finally {
-      setLoading(false);
+      if (silent) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
@@ -94,7 +100,7 @@ export default function App() {
   }
 
   async function handleCircleCreated(circle) {
-    await loadData();
+    await loadData({ silent: true });
     const data = await api.getCircle(circle.id);
     setSelectedCircle(data);
     navigate(VIEWS.circle);
@@ -104,7 +110,7 @@ export default function App() {
     if (selectedCircle?.circle?.id) {
       const data = await api.getCircle(selectedCircle.circle.id);
       setSelectedCircle(data);
-      await loadData();
+      await loadData({ silent: true });
     }
   }
 
@@ -112,7 +118,7 @@ export default function App() {
     try {
       await api.deleteEvent(eventId);
       haptic('success');
-      await loadData();
+      await loadData({ silent: true });
       if (selectedCircle?.circle?.id) {
         const data = await api.getCircle(selectedCircle.circle.id);
         setSelectedCircle(data);
@@ -124,10 +130,40 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="loading-screen">
-        <div className="loading-gift">🎁</div>
-        {t('app.loading')}
-      </div>
+      <>
+        <header className="app-header">
+          <div className="app-header-inner">
+            <div className="app-header-top">
+              <div>
+                <h1>{t('home.title')}</h1>
+                <p>{t('home.subtitle')}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="content">
+          <div className="content-skeleton">
+            <div className="skeleton-block skeleton-block--short" />
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
+          </div>
+        </div>
+        <nav className="bottom-nav">
+          <button type="button" className="nav-item active">
+            <span className="nav-icon">🏠</span>
+            <span>{t('nav.circles')}</span>
+          </button>
+          <button type="button" className="nav-item">
+            <span className="nav-icon">📅</span>
+            <span>{t('nav.events')}</span>
+          </button>
+          <button type="button" className="nav-item">
+            <span className="nav-icon">✨</span>
+            <span>{t('nav.more')}</span>
+          </button>
+        </nav>
+      </>
     );
   }
 
@@ -165,6 +201,11 @@ export default function App() {
       </header>
 
       <div className="content">
+        {refreshing && (
+          <div className="content-loading-overlay" aria-hidden="true">
+            <div className="content-loading-spinner" />
+          </div>
+        )}
         {error && <div className="error-banner">{error}</div>}
 
         {view === VIEWS.home && (
@@ -182,12 +223,26 @@ export default function App() {
           />
         )}
 
-        {view === VIEWS.create && (
-          <CreateCircle
-            onCreated={handleCircleCreated}
-            onCancel={() => navigate(VIEWS.home)}
-          />
-        )}
+        <Suspense fallback={<ViewSkeleton />}>
+          {view === VIEWS.create && (
+            <CreateCircle
+              onCreated={handleCircleCreated}
+              onCancel={() => navigate(VIEWS.home)}
+            />
+          )}
+
+          {view === VIEWS.events && (
+            <EventCalendar events={events} onDelete={handleDeleteEvent} />
+          )}
+
+          {view === VIEWS.wishlist && selectedCircle && (
+            <Wishlist circleId={selectedCircle.circle.id} />
+          )}
+
+          {view === VIEWS.settings && (
+            <Settings user={user} focusReport={focusReport} />
+          )}
+        </Suspense>
 
         {view === VIEWS.circle && selectedCircle && (
           <CircleDetail
@@ -197,18 +252,6 @@ export default function App() {
             onWishlist={() => navigate(VIEWS.wishlist, selectedCircle)}
             onAddEvent={refreshCircle}
           />
-        )}
-
-        {view === VIEWS.events && (
-          <EventCalendar events={events} onDelete={handleDeleteEvent} />
-        )}
-
-        {view === VIEWS.wishlist && selectedCircle && (
-          <Wishlist circleId={selectedCircle.circle.id} />
-        )}
-
-        {view === VIEWS.settings && (
-          <Settings user={user} focusReport={focusReport} />
         )}
       </div>
 
@@ -239,6 +282,16 @@ export default function App() {
         </button>
       </nav>
     </>
+  );
+}
+
+function ViewSkeleton() {
+  return (
+    <div className="content-skeleton">
+      <div className="skeleton-block skeleton-block--short" />
+      <div className="skeleton-block" />
+      <div className="skeleton-block" />
+    </div>
   );
 }
 

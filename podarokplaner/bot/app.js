@@ -66,6 +66,21 @@ export async function createApp() {
     res.json({ ok: true, service: 'Подарок.бот' });
   });
 
+  app.get('/api/bootstrap', authMiddleware, async (req, res) => {
+    await upsertUser(
+      req.telegramUser.id,
+      req.telegramUser.username,
+      req.telegramUser.first_name,
+      req.telegramUser.language_code
+    );
+    const user = await getUser(req.telegramUser.id);
+    const [circles, events] = await Promise.all([
+      getUserCircles(req.telegramUser.id),
+      getUpcomingEvents(req.telegramUser.id, 10),
+    ]);
+    res.json({ user, circles, events });
+  });
+
   app.get('/api/me', authMiddleware, async (req, res) => {
     await upsertUser(
       req.telegramUser.id,
