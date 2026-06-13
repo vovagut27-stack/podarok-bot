@@ -32,6 +32,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [focusReport, setFocusReport] = useState(false);
+  const [wishlistMember, setWishlistMember] = useState(null);
 
   useEffect(() => {
     tg?.ready();
@@ -91,11 +92,16 @@ export default function App() {
     }
   }
 
-  function navigate(to, circle = null) {
+  function navigate(to, circle = null, member = null) {
     haptic('light');
     setView(to);
     if (to !== VIEWS.settings) setFocusReport(false);
     if (circle) setSelectedCircle(circle);
+    if (to === VIEWS.wishlist) {
+      setWishlistMember(member);
+    } else {
+      setWishlistMember(null);
+    }
     setError(null);
   }
 
@@ -175,7 +181,12 @@ export default function App() {
       subtitle: t('circle.subtitle'),
     },
     [VIEWS.events]: { title: t('events.title'), subtitle: t('events.subtitle') },
-    [VIEWS.wishlist]: { title: t('wishlist.title'), subtitle: selectedCircle?.circle?.name },
+    [VIEWS.wishlist]: {
+      title: wishlistMember?.displayName
+        ? t('wishlist.memberTitle', { name: wishlistMember.displayName })
+        : t('wishlist.title'),
+      subtitle: selectedCircle?.circle?.name,
+    },
     [VIEWS.settings]: { title: t('settings.title'), subtitle: t('settings.subtitle') },
   };
 
@@ -236,7 +247,12 @@ export default function App() {
           )}
 
           {view === VIEWS.wishlist && selectedCircle && (
-            <Wishlist circleId={selectedCircle.circle.id} />
+            <Wishlist
+              circleId={selectedCircle.circle.id}
+              memberUserId={wishlistMember?.userId}
+              memberName={wishlistMember?.displayName}
+              currentUserId={user?.telegram_id ?? user?.id}
+            />
           )}
 
           {view === VIEWS.settings && (
@@ -249,7 +265,7 @@ export default function App() {
             data={selectedCircle}
             currentUserId={user?.telegram_id ?? user?.id}
             onRefresh={refreshCircle}
-            onWishlist={() => navigate(VIEWS.wishlist, selectedCircle)}
+            onViewWishlist={(member) => navigate(VIEWS.wishlist, selectedCircle, member)}
             onAddEvent={refreshCircle}
           />
         )}
@@ -295,7 +311,7 @@ function ViewSkeleton() {
   );
 }
 
-function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }) {
+function CircleDetail({ data, currentUserId, onRefresh, onViewWishlist, onAddEvent }) {
   const { t, locale } = useLocale();
   const [showEventForm, setShowEventForm] = useState(false);
   const [eventForm, setEventForm] = useState({
@@ -308,10 +324,17 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
   const [saving, setSaving] = useState(false);
   const [botUsername, setBotUsername] = useState('');
   const [copied, setCopied] = useState(false);
+  const [memberWishlists, setMemberWishlists] = useState([]);
 
   useEffect(() => {
     api.getConfig().then(cfg => setBotUsername(cfg.botUsername || ''));
   }, []);
+
+  useEffect(() => {
+    api.getCircleWishlists(data.circle.id)
+      .then(setMemberWishlists)
+      .catch(() => setMemberWishlists([]));
+  }, [data.circle.id]);
 
   const inviteLink = buildCircleInviteLink(botUsername, data.circle.id);
 
@@ -551,10 +574,32 @@ function CircleDetail({ data, currentUserId, onRefresh, onWishlist, onAddEvent }
         </button>
       )}
 
-      <div className="action-stack">
-        <button type="button" className="btn btn-secondary" onClick={onWishlist}>
-          🎁 {t('circle.myWishlist')}
-        </button>
+      <div className="section-title">{t('circle.wishlists')}</div>
+      <div className="card">
+        {memberWishlists.length === 0 ? (
+          <div className="card-subtitle">{t('circle.wishlistsEmpty')}</div>
+        ) : (
+          memberWishlists.map(member => (
+            <button
+              key={member.userId}
+              type="button"
+              className="wishlist-member-row"
+              onClick={() => onViewWishlist(member)}
+            >
+              <span className="wishlist-member-name">
+                {member.displayName}
+                {Number(member.userId) === Number(currentUserId) && (
+                  <span className="wishlist-member-you"> · {t('wishlist.you')}</span>
+                )}
+              </span>
+              <span className="wishlist-member-meta">
+                {member.itemCount > 0
+                  ? t('wishlist.itemCount', { count: member.itemCount })
+                  : t('wishlist.emptyShort')}
+              </span>
+            </button>
+          ))
+        )}
       </div>
 
       <div className="section-title">{t('circle.inviteSection')}</div>

@@ -19,6 +19,8 @@ import {
   getUpcomingEvents,
   getEvent,
   getOrCreateWishlist,
+  getMemberWishlist,
+  getCircleMemberWishlists,
   getWishlistById,
   getWishlistItemWithOwner,
   getWishlistItems,
@@ -58,6 +60,17 @@ function authenticate(req, res) {
   return user;
 }
 
+function queryParam(req, key) {
+  const fromQuery = req.query?.[key];
+  if (fromQuery != null && fromQuery !== '') {
+    return Array.isArray(fromQuery) ? fromQuery[0] : fromQuery;
+  }
+  const rawUrl = req.url || '';
+  const idx = rawUrl.indexOf('?');
+  if (idx === -1) return null;
+  return new URLSearchParams(rawUrl.slice(idx + 1)).get(key);
+}
+
 export async function handleApiRequest(req, res, path) {
   await initDb();
 
@@ -73,7 +86,7 @@ export async function handleApiRequest(req, res, path) {
     const dbUser = await getUser(user.id);
     const [circles, events] = await Promise.all([
       getUserCircles(user.id),
-      getUpcomingEvents(user.id, 10),
+      getUpcomingEvents(user.id, 50),
     ]);
     return json(res, 200, { user: dbUser, circles, events });
   }
@@ -126,7 +139,7 @@ export async function handleApiRequest(req, res, path) {
 
   // GET /api/events/upcoming
   if (method === 'GET' && path === '/api/events/upcoming') {
-    return json(res, 200, await getUpcomingEvents(user.id, 10));
+    return json(res, 200, await getUpcomingEvents(user.id, 50));
   }
 
   // GET /api/circles/:id/preview
@@ -206,14 +219,37 @@ export async function handleApiRequest(req, res, path) {
     return json(res, 200, event);
   }
 
+  // GET /api/circles/:id/wishlists
+  m = path.match(/^\/api\/circles\/(\d+)\/wishlists$/);
+  if (method === 'GET' && m) {
+    const circleId = parseInt(m[1], 10);
+    if (!(await isCircleMember(circleId, user.id))) return json(res, 403, { error: 'Нет доступа' });
+    return json(res, 200, await getCircleMemberWishlists(circleId));
+  }
+
   // GET /api/circles/:id/wishlist
   m = path.match(/^\/api\/circles\/(\d+)\/wishlist$/);
   if (method === 'GET' && m) {
     const circleId = parseInt(m[1], 10);
     if (!(await isCircleMember(circleId, user.id))) return json(res, 403, { error: 'Нет доступа' });
-    const wishlist = await getOrCreateWishlist(user.id, circleId);
-    const items = await getWishlistItems(wishlist.id);
-    return json(res, 200, { wishlist, items });
+
+    const memberIdRaw = queryParam(req, 'memberId');
+    const targetUserId = memberIdRaw ? parseInt(memberIdRaw, 10) : user.id;
+    if (!Number.isFinite(targetUserId)) {
+      return json(res, 400, { error: 'Некорректный участник' });
+    }
+    if (!(await isCircleMember(circleId, targetUserId))) {
+      return json(res, 404, { error: 'Участник не найден' });
+    }
+
+    const data = await getMemberWishlist(circleId, targetUserId, {
+      createIfMissing: targetUserId === user.id,
+    });
+    return json(res, 200, {
+      ...data,
+      ownerId: targetUserId,
+      readOnly: targetUserId !== user.id,
+    });
   }
 
   // DELETE /api/events/:id

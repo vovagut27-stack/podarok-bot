@@ -27,6 +27,8 @@ import {
   getUpcomingEvents,
   getEvent,
   getOrCreateWishlist,
+  getMemberWishlist,
+  getCircleMemberWishlists,
   getWishlistById,
   getWishlistItemWithOwner,
   getWishlistItems,
@@ -76,7 +78,7 @@ export async function createApp() {
     const user = await getUser(req.telegramUser.id);
     const [circles, events] = await Promise.all([
       getUserCircles(req.telegramUser.id),
-      getUpcomingEvents(req.telegramUser.id, 10),
+      getUpcomingEvents(req.telegramUser.id, 50),
     ]);
     res.json({ user, circles, events });
   });
@@ -239,7 +241,15 @@ export async function createApp() {
   });
 
   app.get('/api/events/upcoming', authMiddleware, async (req, res) => {
-    res.json(await getUpcomingEvents(req.telegramUser.id, 10));
+    res.json(await getUpcomingEvents(req.telegramUser.id, 50));
+  });
+
+  app.get('/api/circles/:id/wishlists', authMiddleware, async (req, res) => {
+    const circleId = parseInt(req.params.id, 10);
+    if (!(await isCircleMember(circleId, req.telegramUser.id))) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    res.json(await getCircleMemberWishlists(circleId));
   });
 
   app.get('/api/circles/:id/wishlist', authMiddleware, async (req, res) => {
@@ -247,9 +257,26 @@ export async function createApp() {
     if (!(await isCircleMember(circleId, req.telegramUser.id))) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
-    const wishlist = await getOrCreateWishlist(req.telegramUser.id, circleId);
-    const items = await getWishlistItems(wishlist.id);
-    res.json({ wishlist, items });
+
+    const memberIdRaw = req.query.memberId;
+    const targetUserId = memberIdRaw
+      ? parseInt(memberIdRaw, 10)
+      : req.telegramUser.id;
+    if (!Number.isFinite(targetUserId)) {
+      return res.status(400).json({ error: 'Некорректный участник' });
+    }
+    if (!(await isCircleMember(circleId, targetUserId))) {
+      return res.status(404).json({ error: 'Участник не найден' });
+    }
+
+    const data = await getMemberWishlist(circleId, targetUserId, {
+      createIfMissing: targetUserId === req.telegramUser.id,
+    });
+    res.json({
+      ...data,
+      ownerId: targetUserId,
+      readOnly: targetUserId !== req.telegramUser.id,
+    });
   });
 
   app.post('/api/wishlists/:id/items', authMiddleware, async (req, res) => {

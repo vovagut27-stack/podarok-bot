@@ -54,7 +54,11 @@ export const api = {
     request(`/circles/${circleId}/events`, { method: 'POST', body: data }),
   deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),
   getUpcomingEvents: () => request('/events/upcoming'),
-  getWishlist: (circleId) => request(`/circles/${circleId}/wishlist`),
+  getWishlist: (circleId, memberUserId) => {
+    const q = memberUserId ? `?memberId=${memberUserId}` : '';
+    return request(`/circles/${circleId}/wishlist${q}`);
+  },
+  getCircleWishlists: (circleId) => request(`/circles/${circleId}/wishlists`),
   addWishlistItem: (wishlistId, item) =>
     request(`/wishlists/${wishlistId}/items`, { method: 'POST', body: item }),
   updateWishlistItem: (id, item) =>

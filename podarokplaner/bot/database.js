@@ -416,32 +416,83 @@ export async function getEvent(eventId) {
 }
 
 export async function getCircleEvents(circleId) {
-  return all(`SELECT * FROM events WHERE circle_id = ? ORDER BY event_date ASC`, [circleId]);
+  const rows = await all(`SELECT * FROM events WHERE circle_id = ? ORDER BY event_date ASC`, [circleId]);
+  return enrichEventsForDisplay(rows);
 }
 
-export async function getUpcomingEvents(userId, limit = 10) {
-  return all(`
+export function computeNextEventDate(eventDate, eventType) {
+  if (!eventDate) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const parts = String(eventDate).slice(0, 10).split('-').map(Number);
+  if (parts.length < 3 || parts.some(Number.isNaN)) return String(eventDate).slice(0, 10);
+
+  const [, month, day] = parts;
+  const isRecurring = eventType === 'birthday' || eventType === 'anniversary';
+
+  if (isRecurring) {
+    let next = new Date(today.getFullYear(), month - 1, day);
+    if (next < today) {
+      next = new Date(today.getFullYear() + 1, month - 1, day);
+    }
+    return next.toISOString().slice(0, 10);
+  }
+
+  const exact = new Date(parts[0], month - 1, day);
+  return exact >= today ? String(eventDate).slice(0, 10) : null;
+}
+
+export function enrichEventsForDisplay(events) {
+  return events.map(row => {
+    const event = rowNums({ ...row }, ['id', 'circle_id', 'celebrant_id']);
+    const nextDate = computeNextEventDate(event.event_date, event.event_type);
+    const isRecurring = event.event_type === 'birthday' || event.event_type === 'anniversary';
+    if (isRecurring && nextDate) {
+      return { ...event, event_date: nextDate };
+    }
+    return event;
+  });
+}
+
+export async function getUpcomingEvents(userId, limit = 50) {
+  const uid = num(userId);
+  const rows = await all(`
     SELECT e.*, fc.name as circle_name
     FROM events e
     JOIN family_circles fc ON fc.id = e.circle_id
     JOIN circle_members cm ON cm.circle_id = e.circle_id
     WHERE cm.user_id = ?
-      AND date(e.event_date) >= date('now')
     ORDER BY e.event_date ASC
-    LIMIT ?
-  `, [userId, limit]);
+  `, [uid]);
+
+  return rows
+    .map(row => {
+      const event = rowNums(row, ['id', 'circle_id', 'celebrant_id']);
+      const nextDate = computeNextEventDate(event.event_date, event.event_type);
+      if (!nextDate) return null;
+      return { ...event, event_date: nextDate };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date))
+    .slice(0, limit);
 }
 
 export async function getEventsForNotification(daysBefore) {
   const targetDate = new Date();
   targetDate.setDate(targetDate.getDate() + daysBefore);
-  const dateStr = targetDate.toISOString().split('T')[0];
-  return all(`
+  const targetStr = targetDate.toISOString().split('T')[0];
+
+  const rows = await all(`
     SELECT e.*, fc.name as circle_name
     FROM events e
     JOIN family_circles fc ON fc.id = e.circle_id
-    WHERE e.event_date = ?
-  `, [dateStr]);
+  `);
+
+  return rows.filter(row => {
+    const nextDate = computeNextEventDate(row.event_date, row.event_type);
+    return nextDate === targetStr;
+  });
 }
 
 export async function markNotificationSent(eventId, userId, daysBefore) {
@@ -457,6 +508,61 @@ export async function wasNotificationSent(eventId, userId, daysBefore) {
     WHERE event_id = ? AND user_id = ? AND days_before = ?
   `, [eventId, userId, daysBefore]);
   return !!row;
+}
+
+function memberDisplayName(member) {
+  return member.display_name
+    || member.first_name
+    || (member.username ? `@${member.username}` : null);
+}
+
+export async function getCircleMemberWishlists(circleId) {
+  const members = (await all(`
+    SELECT cm.user_id, cm.display_name, u.username, u.first_name
+    FROM circle_members cm
+    LEFT JOIN users u ON u.telegram_id = cm.user_id
+    WHERE cm.circle_id = ? AND cm.user_id IS NOT NULL
+    ORDER BY cm.id ASC
+  `, [circleId])).map(m => rowNums(m, ['user_id']));
+
+  const result = [];
+  for (const member of members) {
+    const userId = member.user_id;
+    const wishlist = await one(`
+      SELECT * FROM wishlists WHERE user_id = ? AND circle_id = ?
+    `, [userId, circleId]);
+    const items = wishlist
+      ? await getWishlistItems(num(wishlist.id))
+      : [];
+    result.push({
+      userId,
+      displayName: memberDisplayName(member) || `User ${userId}`,
+      wishlist: wishlist ? rowNums(wishlist, ['id', 'user_id', 'circle_id']) : null,
+      items,
+      itemCount: items.length,
+    });
+  }
+  return result;
+}
+
+export async function getMemberWishlist(circleId, targetUserId, { createIfMissing = false } = {}) {
+  if (!(await isCircleMember(circleId, targetUserId))) return null;
+
+  let wishlist = await one(`
+    SELECT * FROM wishlists WHERE user_id = ? AND circle_id = ?
+  `, [targetUserId, circleId]);
+
+  if (!wishlist && createIfMissing) {
+    wishlist = await getOrCreateWishlist(targetUserId, circleId);
+  }
+  if (!wishlist) {
+    return { wishlist: null, items: [] };
+  }
+
+  return {
+    wishlist: rowNums(wishlist, ['id', 'user_id', 'circle_id']),
+    items: await getWishlistItems(num(wishlist.id)),
+  };
 }
 
 export async function getOrCreateWishlist(userId, circleId) {

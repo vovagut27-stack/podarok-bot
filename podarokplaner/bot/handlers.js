@@ -9,6 +9,7 @@ import {
   setUserLocale,
   getUserLocale,
   isPremiumActive,
+  joinCircle,
 } from './database.js';
 import { getDonattyPageUrl, appendDonateRow, donattyDonateKeyboard } from './donatty.js';
 import { t, normalizeLocale, dateLocale, pluralDaysLabel } from './i18n.js';
@@ -322,6 +323,14 @@ export async function handleStart(msg) {
   const botUsername = process.env.BOT_USERNAME?.replace(/^@/, '');
 
   if (circleId) {
+    await upsertUser(
+      msg.from.id,
+      msg.from.username,
+      msg.from.first_name,
+      msg.from.language_code
+    );
+    await joinCircle(circleId, msg.from.id, msg.from.first_name);
+
     const preview = await getCirclePreview(circleId);
     if (preview) {
       const memberLines = preview.members.map(m => formatMemberLine(m, locale)).join('\n');

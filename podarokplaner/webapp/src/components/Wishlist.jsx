@@ -2,24 +2,29 @@ import { useState, useEffect } from 'react';
 import { api, haptic } from '../api';
 import { useLocale } from '../i18n/LocaleContext';
 
-export default function Wishlist({ circleId }) {
+export default function Wishlist({ circleId, memberUserId, memberName, currentUserId }) {
   const { t } = useLocale();
   const [wishlist, setWishlist] = useState(null);
   const [items, setItems] = useState([]);
+  const [readOnly, setReadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
 
+  const isOwn = !memberUserId || Number(memberUserId) === Number(currentUserId);
+
   useEffect(() => {
+    setLoading(true);
     loadWishlist();
-  }, [circleId]);
+  }, [circleId, memberUserId, currentUserId]);
 
   async function loadWishlist() {
     try {
-      const data = await api.getWishlist(circleId);
+      const data = await api.getWishlist(circleId, isOwn ? null : memberUserId);
       setWishlist(data.wishlist);
-      setItems(data.items);
+      setItems(data.items || []);
+      setReadOnly(Boolean(data.readOnly));
     } catch (err) {
       console.error(err);
     } finally {
@@ -29,6 +34,7 @@ export default function Wishlist({ circleId }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!wishlist?.id) return;
     setSaving(true);
     haptic('medium');
     try {
@@ -58,14 +64,18 @@ export default function Wishlist({ circleId }) {
 
   if (loading) return <div className="loading">{t('app.loading')}</div>;
 
+  const hint = readOnly
+    ? t('wishlist.memberHint', { name: memberName || t('app.user') })
+    : t('wishlist.hint');
+
   return (
     <>
-      <p className="form-hint">{t('wishlist.hint')}</p>
+      <p className="form-hint">{hint}</p>
 
       {items.length === 0 && !showForm ? (
         <div className="empty-state">
           <div className="empty-state-icon">🎁</div>
-          <p>{t('wishlist.empty')}</p>
+          <p>{readOnly ? t('wishlist.memberEmpty') : t('wishlist.empty')}</p>
         </div>
       ) : (
         items.map(item => (
@@ -75,13 +85,15 @@ export default function Wishlist({ circleId }) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div className="card-title">{item.title}</div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm btn-delete"
-                onClick={() => handleDelete(item.id)}
-              >
-                ✕
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm btn-delete"
+                  onClick={() => handleDelete(item.id)}
+                >
+                  ✕
+                </button>
+              )}
             </div>
             {item.description && (
               <p className="wishlist-desc">{item.description}</p>
@@ -103,7 +115,7 @@ export default function Wishlist({ circleId }) {
         ))
       )}
 
-      {showForm ? (
+      {!readOnly && (showForm ? (
         <form className="card" onSubmit={handleSubmit}>
           <div className="form-group">
             <label>{t('wishlist.itemTitle')}</label>
@@ -154,7 +166,7 @@ export default function Wishlist({ circleId }) {
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
               {t('create.cancel')}
             </button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
+            <button type="submit" className="btn btn-primary" disabled={saving || !wishlist?.id}>
               {saving ? '...' : t('circle.add')}
             </button>
           </div>
@@ -163,7 +175,7 @@ export default function Wishlist({ circleId }) {
         <button type="button" className="btn btn-primary" onClick={() => setShowForm(true)}>
           🎁 {t('wishlist.add')}
         </button>
-      )}
+      ))}
     </>
   );
 }
